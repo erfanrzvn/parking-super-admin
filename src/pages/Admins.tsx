@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '../../../../shared/amplify/data/resource';
+import type { Schema } from '../amplify/data/resource';
 import type { Admin, Building } from '../types';
 import './Admins.css';
 
