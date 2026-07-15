@@ -1,0 +1,29 @@
+.app-container {
+  display: flex;
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+.app-main {
+  flex: 1;
+  margin-left: 250px;
+  min-height: 100vh;
+  background: #f3f4f6;
+}
+
+.page-placeholder {
+  padding: 60px 30px;
+  text-align: center;
+  font-size: 24px;
+  color: #666;
+  background: white;
+  border-radius: 12px;
+  margin: 30px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+@media (max-width: 768px) {
+  .app-main {
+    margin-left: 0;
+  }
+}
