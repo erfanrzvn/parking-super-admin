@@ -10,6 +10,25 @@ import Units from './pages/Units';
 import Parkings from './pages/Parkings';
 import Reservations from './pages/Reservations';
 
+// Configure Amplify IMMEDIATELY at module load
+import { Amplify } from 'aws-amplify';
+Amplify.configure({
+  Auth: {
+    Cognito: {
+      userPoolId: 'ca-central-1_UecP7kd1N',
+      userPoolClientId: '7ckai37tgmnlqeeq5i4ujvkm6n',
+      identityPoolId: 'ca-central-1:a47d9621-3bf4-48ff-8560-f350e18bbb99',
+    }
+  },
+  API: {
+    GraphQL: {
+      endpoint: 'https://dp457mgtrvdkfod6o6mmhpoy74.appsync-api.ca-central-1.amazonaws.com/graphql',
+      region: 'ca-central-1',
+      defaultAuthMode: 'userPool'
+    }
+  }
+});
+
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
 
