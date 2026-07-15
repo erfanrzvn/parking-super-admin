@@ -13,7 +13,7 @@ build/
 .env.production
 
 # Amplify
-amplify_outputs.json
+# amplify_outputs.json - keeping this for deployment
 amplifyconfiguration.json
 
 # Logs
