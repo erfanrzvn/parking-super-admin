@@ -12,6 +12,9 @@ import Reservations from './pages/Reservations';
 
 // Configure Amplify IMMEDIATELY at module load
 import { Amplify } from 'aws-amplify';
+
+console.log('🔧 Configuring Amplify...');
+
 Amplify.configure({
   Auth: {
     Cognito: {
@@ -28,6 +31,8 @@ Amplify.configure({
     }
   }
 });
+
+console.log('✅ Amplify configured successfully!');
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
