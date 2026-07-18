@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { Authenticator } from '@aws-amplify/ui-react';
-import '@aws-amplify/ui-react/styles.css';
+import { useState, useEffect } from 'react';
+import { signOut, getCurrentUser } from 'aws-amplify/auth';
 import './App.css';
+import Login from './components/Login';
 import Navigation from './components/Navigation';
 import Dashboard from './pages/Dashboard';
 import Buildings from './pages/Buildings';
@@ -14,6 +14,52 @@ import Reservations from './pages/Reservations';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkUser();
+  }, []);
+
+  const checkUser = async () => {
+    try {
+      const currentUser = await getCurrentUser();
+      setUser(currentUser);
+    } catch (err) {
+      console.log('No user signed in');
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setUser(null);
+    } catch (err) {
+      console.error('Error signing out:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        height: '100vh',
+        fontSize: '1.2rem',
+        color: '#666'
+      }}>
+        Loading...
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onSuccess={setUser} />;
+  }
 
   const renderPage = () => {
     switch (currentPage) {
@@ -35,30 +81,17 @@ function App() {
   };
 
   return (
-    <Authenticator
-      formFields={{
-        signIn: {
-          username: {
-            label: 'Email',
-            placeholder: 'superadmin@parking.com',
-          },
-        },
-      }}
-    >
-      {({ signOut, user }) => (
-        <div className="app-container">
-          <Navigation
-            currentPage={currentPage}
-            onNavigate={setCurrentPage}
-            onSignOut={signOut!}
-            userEmail={user?.signInDetails?.loginId}
-          />
-          <main className="app-main">
-            {renderPage()}
-          </main>
-        </div>
-      )}
-    </Authenticator>
+    <div className="app-container">
+      <Navigation
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        onSignOut={handleSignOut}
+        userEmail={user?.username || user?.signInDetails?.loginId}
+      />
+      <main className="app-main">
+        {renderPage()}
+      </main>
+    </div>
   );
 }
 
