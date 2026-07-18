@@ -69,31 +69,27 @@ export default function Admins() {
         });
         alert('✅ ادمین با موفقیت ویرایش شد');
       } else {
-        // Create - use custom mutation to create both Cognito user and DynamoDB record
-        const result = await client.mutations.createAdminWithCognito({
+        // TEMPORARY FIX: Create Admin directly in DynamoDB
+        // Note: Cognito user must be created manually for now
+        const result = await client.models.Admin.create({
           buildingCode: formData.buildingCode,
           managerCode: formData.managerCode,
           managerName: formData.managerName,
           email: formData.email,
-          phoneNo: formData.phoneNo || undefined,
-          buildingName: formData.buildingName || undefined,
-          buildingNo: formData.buildingNo || undefined,
-          address: formData.address || undefined,
+          phoneNo: formData.phoneNo || null,
+          buildingName: formData.buildingName || null,
+          buildingNo: formData.buildingNo || null,
+          address: formData.address || null,
         });
 
-        if (result.data?.success) {
-          const message = `✅ ادمین با موفقیت ایجاد شد!\n\n` +
-            `📧 Email: ${formData.email}\n` +
-            `🔑 Temporary Password: ${result.data.temporaryPassword}\n\n` +
-            `⚠️ این رمز موقت را به ادمین ارسال کنید.`;
-          alert(message);
-          
-          // Also log it to console for easy copy
-          console.log('New Admin Created:');
-          console.log('Email:', formData.email);
-          console.log('Temporary Password:', result.data.temporaryPassword);
+        if (result.data) {
+          alert(`✅ Admin record created in database!\n\n` +
+            `⚠️ NOTE: You need to manually create Cognito user:\n` +
+            `Email: ${formData.email}\n` +
+            `Group: BuildingAdmins\n` +
+            `Building Code: ${formData.buildingCode}`);
         } else {
-          alert(`❌ ${result.data?.message || 'خطا در ایجاد ادمین'}`);
+          alert(`❌ Failed to create admin record`);
           return;
         }
       }
