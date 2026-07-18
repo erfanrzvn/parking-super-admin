@@ -213,29 +213,120 @@ export default function Admins() {
     setShowForm(true);
   };
 
-  const handleDelete = async (email: string, name: string) => {
-    if (!confirm(`آیا از حذف ادمین "${name}" اطمینان دارید؟\n\nاین کار user را از Cognito حذف می‌کند.`)) {
+  const handleDelete = async (username: string, name: string) => {
+    if (!confirm(`آیا از حذف ادمین "${name}" اطمینان دارید؟\n\nاین کار user را از Cognito حذف می‌کند و قابل بازگشت نیست!`)) {
       return;
     }
 
-    const instructions = `
-⚠️ برای حذف Admin، این دستور را اجرا کنید:
+    try {
+      console.log('🗑️ Deleting admin from Cognito...', username);
+      
+      const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      
+      // Get credentials from Amplify
+      const session = await fetchAuthSession();
+      const credentials = session.credentials;
+      
+      if (!credentials) {
+        throw new Error('No credentials available');
+      }
 
-aws cognito-idp admin-delete-user \\
-  --user-pool-id ca-central-1_UecP7kd1N \\
-  --username ${email} \\
-  --region ca-central-1
-    `.trim();
+      const lambdaClient = new LambdaClient({
+        region: 'ca-central-1',
+        credentials: {
+          accessKeyId: credentials.accessKeyId,
+          secretAccessKey: credentials.secretAccessKey,
+          sessionToken: credentials.sessionToken,
+        },
+      });
 
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(instructions);
-      alert('✅ دستور AWS CLI کپی شد!\n\nلطفاً در PowerShell اجرا کنید و سپس صفحه را رفرش کنید.');
-    } else {
-      alert(instructions);
+      const payload = JSON.stringify({
+        arguments: {
+          username: username,
+        },
+      });
+
+      const command = new InvokeCommand({
+        FunctionName: 'amplify-parkingsystemshar-deleteadminfromcognito-temp123',
+        Payload: new TextEncoder().encode(payload),
+      });
+
+      const response = await lambdaClient.send(command);
+      const result = JSON.parse(new TextDecoder().decode(response.Payload));
+
+      console.log('📋 Delete result:', result);
+
+      if (result.success) {
+        alert(`✅ ${result.message}`);
+        loadData(); // Reload admins
+      } else {
+        alert(`❌ ${result.message}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Delete error:', error);
+      alert(`❌ خطا در حذف: ${error.message}`);
+    }
+  };
+
+  const handleSuspend = async (username: string, name: string, currentlyEnabled: boolean) => {
+    const action = currentlyEnabled ? 'suspend' : 'enable';
+    const actionPersian = currentlyEnabled ? 'تعلیق' : 'فعال‌سازی';
+    
+    if (!confirm(`آیا از ${actionPersian} ادمین "${name}" اطمینان دارید؟`)) {
+      return;
     }
 
-    console.log('Admin Deletion Instruction:');
-    console.log(instructions);
+    try {
+      console.log(`🔄 ${action}ing admin...`, username);
+      
+      const { LambdaClient, InvokeCommand } = await import('@aws-sdk/client-lambda');
+      const { fetchAuthSession } = await import('aws-amplify/auth');
+      
+      // Get credentials from Amplify
+      const session = await fetchAuthSession();
+      const credentials = session.credentials;
+      
+      if (!credentials) {
+        throw new Error('No credentials available');
+      }
+
+      const lambdaClient = new LambdaClient({
+        region: 'ca-central-1',
+        credentials: {
+          accessKeyId: credentials.accessKeyId,
+          secretAccessKey: credentials.secretAccessKey,
+          sessionToken: credentials.sessionToken,
+        },
+      });
+
+      const payload = JSON.stringify({
+        arguments: {
+          username: username,
+          suspend: currentlyEnabled, // If currently enabled, suspend it
+        },
+      });
+
+      const command = new InvokeCommand({
+        FunctionName: 'amplify-parkingsystemshar-suspendadminincognito-temp456',
+        Payload: new TextEncoder().encode(payload),
+      });
+
+      const response = await lambdaClient.send(command);
+      const result = JSON.parse(new TextDecoder().decode(response.Payload));
+
+      console.log('📋 Suspend/Enable result:', result);
+
+      if (result.success) {
+        alert(`✅ ${result.message}`);
+        loadData(); // Reload admins
+      } else {
+        alert(`❌ ${result.message}`);
+      }
+    } catch (error: any) {
+      console.error('❌ Suspend/Enable error:', error);
+      alert(`❌ خطا: ${error.message}`);
+    }
   };
 
   const resetForm = () => {
@@ -451,8 +542,16 @@ aws cognito-idp admin-delete-user \\
                     📝 Edit
                   </button>
                   <button
+                    className="btn-icon"
+                    style={{ background: admin.enabled ? '#ff9800' : '#4caf50', color: 'white' }}
+                    onClick={() => handleSuspend(admin.username, admin.managerName, admin.enabled)}
+                    title={admin.enabled ? 'Suspend admin' : 'Enable admin'}
+                  >
+                    {admin.enabled ? '⏸️ Suspend' : '▶️ Enable'}
+                  </button>
+                  <button
                     className="btn-icon delete"
-                    onClick={() => handleDelete(admin.email, admin.managerName)}
+                    onClick={() => handleDelete(admin.username, admin.managerName)}
                   >
                     🗑️ Delete
                   </button>
