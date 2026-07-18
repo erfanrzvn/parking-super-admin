@@ -58,70 +58,89 @@ export default function Admins() {
   };
 
   const loadAdminsFromBothSources = async () => {
-    // Load admins from Cognito using direct GraphQL call
+    // Load admins from Cognito using AWS SDK with Amplify credentials
     try {
-      console.log('🔍 Loading admins from Cognito via GraphQL...');
+      console.log('🔍 Loading admins from Cognito...');
       
-      const { graphqlOperation } = await import('aws-amplify/api');
-      const { generateClient } = await import('aws-amplify/api');
+      const { CognitoIdentityProviderClient, ListUsersCommand, AdminListGroupsForUserCommand } = 
+        await import('@aws-sdk/client-cognito-identity-provider');
+      const { fetchAuthSession } = await import('aws-amplify/auth');
       
-      const gqlClient = generateClient();
+      // Get credentials from Amplify
+      const session = await fetchAuthSession();
+      const credentials = session.credentials;
       
-      const query = /* GraphQL */ `
-        query ListCognitoUsers($filter: String, $limit: Int) {
-          listCognitoUsers(filter: $filter, limit: $limit) {
-            items {
-              id
-              email
-              name
-              phone
-              buildingCode
-              managerCode
-              userRole
-              isActive
-              userStatus
-              createdAt
-              groups
-            }
-            nextToken
-          }
-        }
-      `;
+      if (!credentials) {
+        throw new Error('No credentials available');
+      }
 
-      const variables = {
-        filter: 'BUILDING_ADMIN',
-        limit: 100,
-      };
-
-      const result: any = await gqlClient.graphql({
-        query,
-        variables,
+      const cognitoClient = new CognitoIdentityProviderClient({
+        region: 'ca-central-1',
+        credentials: {
+          accessKeyId: credentials.accessKeyId,
+          secretAccessKey: credentials.secretAccessKey,
+          sessionToken: credentials.sessionToken,
+        },
       });
 
-      console.log('📋 GraphQL result:', result);
+      console.log('📞 Listing Cognito users...');
+      
+      const listCommand = new ListUsersCommand({
+        UserPoolId: 'ca-central-1_UecP7kd1N',
+        Limit: 60,
+      });
 
-      if (result.data?.listCognitoUsers?.items) {
-        const cognitoAdmins: CognitoAdmin[] = result.data.listCognitoUsers.items.map((user: any) => ({
-          username: user.id,
-          email: user.email,
-          buildingCode: user.buildingCode || '',
-          managerCode: user.managerCode || '',
-          managerName: user.name || user.email,
-          phoneNo: user.phone || '',
-          enabled: user.isActive !== false,
-          status: user.userStatus || 'CONFIRMED',
-          createdAt: user.createdAt || new Date().toISOString(),
-        }));
+      const response = await cognitoClient.send(listCommand);
+      console.log(`📋 Found ${response.Users?.length || 0} total users`);
 
-        console.log(`✅ Loaded ${cognitoAdmins.length} admins from Cognito`);
-        setAdmins(cognitoAdmins);
-      } else {
-        console.log('📋 No admins found in Cognito');
-        setAdmins([]);
+      const cognitoAdmins: CognitoAdmin[] = [];
+
+      // Filter for BUILDING_ADMIN users
+      for (const user of response.Users || []) {
+        const attributes: Record<string, string> = {};
+        for (const attr of user.Attributes || []) {
+          if (attr.Name && attr.Value) {
+            attributes[attr.Name] = attr.Value;
+          }
+        }
+
+        // Only include BUILDING_ADMIN users
+        if (attributes['custom:role'] === 'BUILDING_ADMIN') {
+          // Get groups for this user
+          let groups: string[] = [];
+          try {
+            const groupsCommand = new AdminListGroupsForUserCommand({
+              UserPoolId: 'ca-central-1_UecP7kd1N',
+              Username: user.Username,
+            });
+            const groupsResponse = await cognitoClient.send(groupsCommand);
+            groups = (groupsResponse.Groups || []).map((g) => g.GroupName || '');
+          } catch (error) {
+            console.warn(`Could not get groups for ${user.Username}:`, error);
+          }
+
+          cognitoAdmins.push({
+            username: user.Username || '',
+            email: attributes.email || '',
+            buildingCode: attributes['custom:buildingCode'] || '',
+            managerCode: attributes['custom:managerCode'] || '',
+            managerName: attributes.name || attributes.email || '',
+            phoneNo: attributes.phone_number || '',
+            enabled: user.Enabled || false,
+            status: user.UserStatus || 'UNKNOWN',
+            createdAt: user.UserCreateDate?.toISOString() || new Date().toISOString(),
+          });
+        }
       }
+
+      console.log(`✅ Loaded ${cognitoAdmins.length} BUILDING_ADMIN users from Cognito`);
+      setAdmins(cognitoAdmins);
     } catch (error: any) {
       console.error('❌ Error loading admins from Cognito:', error);
-      console.error('Error details:', error.errors || error.message);
+      console.error('Error details:', error.message);
+      
+      // Show user-friendly message
+      alert(`خطا در بارگذاری ادمین‌ها از Cognito:\n\n${error.message}\n\nلطفاً console را چک کنید`);
       setAdmins([]);
     }
   };
