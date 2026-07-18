@@ -1,27 +1,11 @@
-// Amplify Configuration - v6 format
+// Amplify Configuration - Using amplify_outputs.json
 import { Amplify } from 'aws-amplify';
+import outputs from './amplify_outputs.json';
 
-console.log('🔧 Configuring Amplify from amplifyConfig.ts...');
+console.log('🔧 Configuring Amplify from amplify_outputs.json...');
 
-Amplify.configure({
-  Auth: {
-    Cognito: {
-      userPoolId: 'ca-central-1_UecP7kd1N',
-      userPoolClientId: '7ckai37tgmnlqeeq5i4ujvkm6n',
-      identityPoolId: 'ca-central-1:a47d9621-3bf4-48ff-8560-f350e18bbb99'
-    }
-  },
-  API: {
-    GraphQL: {
-      endpoint: 'https://dp457mgtrvdkfod6o6mmhpoy74.appsync-api.ca-central-1.amazonaws.com/graphql',
-      region: 'ca-central-1',
-      defaultAuthMode: 'userPool'
-    }
-  }
-}, {
-  ssr: false
-});
+Amplify.configure(outputs);
 
-console.log('✅ Amplify configured successfully from amplifyConfig.ts!');
+console.log('✅ Amplify configured successfully!');
 
 export default {};
