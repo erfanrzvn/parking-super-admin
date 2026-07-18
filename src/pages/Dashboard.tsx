@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
 import './Dashboard.css';
@@ -15,8 +14,11 @@ interface Stats {
   activeReservations: number;
 }
 
-export default function Dashboard() {
-  const navigate = useNavigate();
+interface DashboardProps {
+  onNavigate?: (page: string) => void;
+}
+
+export default function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = useState<Stats>({
     totalBuildings: 0,
     totalAdmins: 0,
@@ -139,19 +141,19 @@ export default function Dashboard() {
       <div className="quick-actions">
         <h2>⚡ Quick Actions</h2>
         <div className="action-buttons">
-          <button className="action-btn primary" onClick={() => navigate('/buildings')}>
+          <button className="action-btn primary" onClick={() => onNavigate?.('buildings')}>
             <span className="action-icon">🏢</span>
             <span className="action-label">Add Building</span>
           </button>
-          <button className="action-btn secondary" onClick={() => navigate('/admins')}>
+          <button className="action-btn secondary" onClick={() => onNavigate?.('admins')}>
             <span className="action-icon">👤</span>
             <span className="action-label">Add Admin</span>
           </button>
-          <button className="action-btn secondary" onClick={() => navigate('/units')}>
+          <button className="action-btn secondary" onClick={() => onNavigate?.('units')}>
             <span className="action-icon">🏠</span>
             <span className="action-label">Add Unit</span>
           </button>
-          <button className="action-btn secondary" onClick={() => navigate('/parkings')}>
+          <button className="action-btn secondary" onClick={() => onNavigate?.('parkings')}>
             <span className="action-icon">🅿️</span>
             <span className="action-label">Add Parking</span>
           </button>

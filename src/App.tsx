@@ -64,7 +64,7 @@ function App() {
   const renderPage = () => {
     switch (currentPage) {
       case 'dashboard':
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentPage} />;
       case 'buildings':
         return <Buildings />;
       case 'admins':
@@ -76,7 +76,7 @@ function App() {
       case 'reservations':
         return <Reservations />;
       default:
-        return <Dashboard />;
+        return <Dashboard onNavigate={setCurrentPage} />;
     }
   };
 
