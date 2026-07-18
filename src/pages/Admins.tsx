@@ -58,27 +58,50 @@ export default function Admins() {
   };
 
   const loadAdminsFromBothSources = async () => {
-    // Load admins from Cognito ONLY (not DynamoDB)
+    // Load admins from Cognito using direct GraphQL call
     try {
-      console.log('🔍 Loading admins from Cognito...');
+      console.log('🔍 Loading admins from Cognito via GraphQL...');
       
-      // Check if listCognitoUsers query exists
-      if (!client.queries?.listCognitoUsers) {
-        console.warn('⚠️ listCognitoUsers query not available yet');
-        console.log('💡 Waiting for backend deployment to complete...');
-        setAdmins([]);
-        return;
-      }
+      const { graphqlOperation } = await import('aws-amplify/api');
+      const { generateClient } = await import('aws-amplify/api');
+      
+      const gqlClient = generateClient();
+      
+      const query = /* GraphQL */ `
+        query ListCognitoUsers($filter: String, $limit: Int) {
+          listCognitoUsers(filter: $filter, limit: $limit) {
+            items {
+              id
+              email
+              name
+              phone
+              buildingCode
+              managerCode
+              userRole
+              isActive
+              userStatus
+              createdAt
+              groups
+            }
+            nextToken
+          }
+        }
+      `;
 
-      const result = await client.queries.listCognitoUsers({
+      const variables = {
         filter: 'BUILDING_ADMIN',
         limit: 100,
+      };
+
+      const result: any = await gqlClient.graphql({
+        query,
+        variables,
       });
 
-      console.log('📋 Cognito users result:', result);
+      console.log('📋 GraphQL result:', result);
 
-      if (result.data?.items) {
-        const cognitoAdmins: CognitoAdmin[] = result.data.items.map((user: any) => ({
+      if (result.data?.listCognitoUsers?.items) {
+        const cognitoAdmins: CognitoAdmin[] = result.data.listCognitoUsers.items.map((user: any) => ({
           username: user.id,
           email: user.email,
           buildingCode: user.buildingCode || '',
@@ -96,8 +119,9 @@ export default function Admins() {
         console.log('📋 No admins found in Cognito');
         setAdmins([]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error loading admins from Cognito:', error);
+      console.error('Error details:', error.errors || error.message);
       setAdmins([]);
     }
   };
