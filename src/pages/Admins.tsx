@@ -277,7 +277,7 @@ aws cognito-idp admin-delete-user \\
 
       {showForm && (
         <div className="form-card">
-          <h2>{editingId ? '📝 Edit Admin' : '➕ Add New Admin'}</h2>
+          <h2>{editingEmail ? '📝 Edit Admin' : '➕ Add New Admin'}</h2>
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -287,7 +287,7 @@ aws cognito-idp admin-delete-user \\
                   required
                   value={formData.buildingCode}
                   onChange={(e) => handleBuildingChange(e.target.value)}
-                  disabled={!!editingId}
+                  disabled={!!editingEmail}
                 >
                   <option value="">Select Building</option>
                   {buildings.map((building) => (
@@ -308,7 +308,7 @@ aws cognito-idp admin-delete-user \\
                   value={formData.managerCode}
                   onChange={(e) => setFormData({ ...formData, managerCode: e.target.value })}
                   placeholder="MGR001"
-                  disabled={!!editingId}
+                  disabled={!!editingEmail}
                 />
                 <small>کد یکتا برای مدیر (مثلا MGR001)</small>
               </div>
