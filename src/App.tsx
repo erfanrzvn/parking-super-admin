@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { signOut, getCurrentUser } from 'aws-amplify/auth';
+import { signOut, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import './App.css';
 import Login from './components/Login';
 import Navigation from './components/Navigation';
@@ -24,6 +24,10 @@ function App() {
   const checkUser = async () => {
     try {
       const currentUser = await getCurrentUser();
+      
+      // Fetch auth session to ensure credentials are available
+      await fetchAuthSession({ forceRefresh: true });
+      
       setUser(currentUser);
     } catch (err) {
       console.log('No user signed in');

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { signIn, signOut, getCurrentUser } from 'aws-amplify/auth';
+import { signIn, getCurrentUser, fetchAuthSession } from 'aws-amplify/auth';
 import './Login.css';
 
 interface LoginProps {
@@ -26,8 +26,15 @@ export default function Login({ onSuccess }: LoginProps) {
 
       console.log('✅ Sign in successful:', result);
 
+      // Fetch auth session to get credentials
+      console.log('🔑 Fetching auth session...');
+      await fetchAuthSession({ forceRefresh: true });
+      console.log('✅ Auth session fetched!');
+
       // Get current user info
       const user = await getCurrentUser();
+      console.log('👤 Current user:', user);
+      
       onSuccess(user);
     } catch (err: any) {
       console.error('❌ Sign in error:', err);
