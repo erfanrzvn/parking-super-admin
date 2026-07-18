@@ -59,36 +59,19 @@ export default function Admins() {
 
   const loadAdminsFromCognito = async () => {
     try {
-      const result = await client.queries.listCognitoUsers({
-        limit: 60,
-        filter: 'BUILDING_ADMIN'
-      });
-
-      console.log('Cognito users result:', result);
-
-      if (result.data?.items) {
-        const cognitoAdmins: CognitoAdmin[] = result.data.items
-          .filter((user: any) => user.userRole === 'BUILDING_ADMIN' || user.email?.includes('admin'))
-          .map((user: any) => ({
-            username: user.id,
-            email: user.email || '',
-            buildingCode: user.buildingCode || 'N/A',
-            managerCode: user.managerCode || 'N/A',
-            managerName: user.name || user.email?.split('@')[0] || 'Unknown',
-            phoneNo: user.phone || '',
-            enabled: user.isActive !== false,
-            status: user.isActive ? 'CONFIRMED' : 'DISABLED',
-            createdAt: user.createdAt || new Date().toISOString(),
-          }));
-        
-        console.log('📋 Loaded admins from Cognito:', cognitoAdmins.length);
-        setAdmins(cognitoAdmins);
-      } else {
-        setAdmins([]);
-      }
+      // TEMPORARY: Since listCognitoUsers Lambda doesn't exist,
+      // we'll show a placeholder message and instructions
+      console.log('⚠️ listCognitoUsers Lambda function not available');
+      console.log('📋 Showing Cognito users that were created via CLI');
+      
+      // For now, show empty list with helpful message
+      // Users should use AWS CLI to list admins:
+      // aws cognito-idp list-users --user-pool-id ca-central-1_UecP7kd1N --region ca-central-1 --filter "custom:role = \"BUILDING_ADMIN\""
+      
+      setAdmins([]);
+      
     } catch (error) {
       console.error('Error loading admins from Cognito:', error);
-      alert('خطا در بارگذاری ادمین‌ها از Cognito. لطفاً console را چک کنید.');
       setAdmins([]);
     }
   };
@@ -362,8 +345,15 @@ aws cognito-idp admin-delete-user \\
         {admins.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon">👥</div>
-            <h3>No admins yet</h3>
-            <p>Click "Add Admin" to create your first building administrator</p>
+            <h3>Admins are managed via AWS Cognito</h3>
+            <p>Use the form above to get AWS CLI commands for creating admins.</p>
+            <p style={{ marginTop: '1rem', padding: '1rem', background: '#f0f0f0', borderRadius: '8px', fontSize: '0.9rem' }}>
+              <strong>💡 To view existing admins:</strong><br/>
+              Run this command in PowerShell:<br/>
+              <code style={{ display: 'block', marginTop: '0.5rem', padding: '0.5rem', background: '#fff', borderRadius: '4px' }}>
+                aws cognito-idp list-users --user-pool-id ca-central-1_UecP7kd1N --region ca-central-1 --filter "custom:role = \"BUILDING_ADMIN\""
+              </code>
+            </p>
           </div>
         ) : (
           <div className="admins-grid">
