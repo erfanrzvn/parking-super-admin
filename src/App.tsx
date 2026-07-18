@@ -10,45 +10,7 @@ import Units from './pages/Units';
 import Parkings from './pages/Parkings';
 import Reservations from './pages/Reservations';
 
-// Configure Amplify IMMEDIATELY at module load
-import { Amplify } from 'aws-amplify';
-
-console.log('🔧 Configuring Amplify...');
-
-Amplify.configure({
-  Auth: {
-    Cognito: {
-      userPoolId: 'ca-central-1_UecP7kd1N',
-      userPoolClientId: '7ckai37tgmnlqeeq5i4ujvkm6n',
-      identityPoolId: 'ca-central-1:a47d9621-3bf4-48ff-8560-f350e18bbb99',
-      loginWith: {
-        email: true
-      },
-      signUpVerificationMethod: 'code',
-      userAttributes: {
-        email: {
-          required: true
-        }
-      },
-      passwordFormat: {
-        minLength: 8,
-        requireLowercase: true,
-        requireUppercase: true,
-        requireNumbers: true,
-        requireSpecialCharacters: true
-      }
-    }
-  },
-  API: {
-    GraphQL: {
-      endpoint: 'https://dp457mgtrvdkfod6o6mmhpoy74.appsync-api.ca-central-1.amazonaws.com/graphql',
-      region: 'ca-central-1',
-      defaultAuthMode: 'userPool'
-    }
-  }
-});
-
-console.log('✅ Amplify configured successfully!');
+// Amplify is already configured in amplifyConfig.ts (imported in main.tsx)
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
