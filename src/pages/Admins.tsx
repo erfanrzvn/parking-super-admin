@@ -34,6 +34,8 @@ export default function Admins() {
         client.models.Admin.list(),
         client.models.Building.list(),
       ]);
+      
+      console.log('📋 Loaded admins from DynamoDB:', adminsData.data.length);
       setAdmins(adminsData.data as Admin[]);
       setBuildings(buildingsData.data as Building[]);
     } catch (error) {
