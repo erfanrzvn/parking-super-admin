@@ -26,7 +26,18 @@ function App() {
       const currentUser = await getCurrentUser();
       
       // Fetch auth session to ensure credentials are available
-      await fetchAuthSession({ forceRefresh: true });
+      const session = await fetchAuthSession({ forceRefresh: true });
+      
+      // Log session details for debugging
+      console.log('🔑 Auth session:', {
+        tokens: session.tokens ? 'Present' : 'Missing',
+        credentials: session.credentials ? 'Present' : 'Missing',
+        identityId: session.identityId
+      });
+      
+      // Log user groups if available
+      const groups = session.tokens?.accessToken?.payload['cognito:groups'];
+      console.log('👥 User groups:', groups);
       
       setUser(currentUser);
     } catch (err) {
