@@ -11,6 +11,11 @@ export default defineConfig({
   define: {
     global: 'globalThis',
   },
+  build: {
+    sourcemap: true,
+    minify: 'esbuild',
+    target: 'es2020',
+  },
   server: {
     port: 3001,
   },
