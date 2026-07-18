@@ -58,43 +58,48 @@ export default function Admins() {
   };
 
   const loadAdminsFromBothSources = async () => {
-    const adminMap = new Map<string, CognitoAdmin>();
-
-    // 1. Try to load from DynamoDB first
+    // Load admins from Cognito ONLY (not DynamoDB)
     try {
-      const adminsData = await client.models.Admin.list();
-      console.log('📋 Loaded from DynamoDB:', adminsData.data.length);
+      console.log('🔍 Loading admins from Cognito...');
       
-      for (const admin of adminsData.data) {
-        adminMap.set(admin.email, {
-          username: admin.id,
-          email: admin.email,
-          buildingCode: admin.buildingCode,
-          managerCode: admin.managerCode,
-          managerName: admin.managerName,
-          phoneNo: admin.phoneNo || '',
-          enabled: true,
-          status: 'CONFIRMED',
-          createdAt: admin.createdAt || new Date().toISOString(),
-        });
+      // Check if listCognitoUsers query exists
+      if (!client.queries?.listCognitoUsers) {
+        console.warn('⚠️ listCognitoUsers query not available yet');
+        console.log('💡 Waiting for backend deployment to complete...');
+        setAdmins([]);
+        return;
+      }
+
+      const result = await client.queries.listCognitoUsers({
+        filter: 'BUILDING_ADMIN',
+        limit: 100,
+      });
+
+      console.log('📋 Cognito users result:', result);
+
+      if (result.data?.items) {
+        const cognitoAdmins: CognitoAdmin[] = result.data.items.map((user: any) => ({
+          username: user.id,
+          email: user.email,
+          buildingCode: user.buildingCode || '',
+          managerCode: user.managerCode || '',
+          managerName: user.name || user.email,
+          phoneNo: user.phone || '',
+          enabled: user.isActive !== false,
+          status: user.userStatus || 'CONFIRMED',
+          createdAt: user.createdAt || new Date().toISOString(),
+        }));
+
+        console.log(`✅ Loaded ${cognitoAdmins.length} admins from Cognito`);
+        setAdmins(cognitoAdmins);
+      } else {
+        console.log('📋 No admins found in Cognito');
+        setAdmins([]);
       }
     } catch (error) {
-      console.error('Error loading from DynamoDB:', error);
+      console.error('❌ Error loading admins from Cognito:', error);
+      setAdmins([]);
     }
-
-    // 2. Also check Cognito users with BUILDING_ADMIN role
-    try {
-      // Manual list from Cognito using AWS SDK would go here
-      // For now, we rely on DynamoDB
-      console.log('💡 Tip: Use AWS CLI to see all Cognito admins');
-    } catch (error) {
-      console.error('Error loading from Cognito:', error);
-    }
-
-    // Set final admin list
-    const finalAdmins = Array.from(adminMap.values());
-    console.log('✅ Total admins loaded:', finalAdmins.length);
-    setAdmins(finalAdmins);
   };
 
   const handleBuildingChange = (buildingCode: string) => {
@@ -119,39 +124,10 @@ export default function Admins() {
     }
 
     try {
-      // Show instructions and also create in DynamoDB
-      const instructions = `
-⚠️ برای ایجاد Admin در Cognito، این دستورات را اجرا کنید:
-
-# 1. Create Cognito User:
-aws cognito-idp admin-create-user \\
-  --user-pool-id ca-central-1_UecP7kd1N \\
-  --username ${formData.email} \\
-  --user-attributes Name=email,Value=${formData.email} Name=email_verified,Value=true Name=custom:buildingCode,Value=${formData.buildingCode} Name=custom:managerCode,Value=${formData.managerCode} Name=name,Value="${formData.managerName}" Name=custom:role,Value=BUILDING_ADMIN \\
-  --message-action SUPPRESS \\
-  --region ca-central-1
-
-# 2. Add to BuildingAdmins Group:
-aws cognito-idp admin-add-user-to-group \\
-  --user-pool-id ca-central-1_UecP7kd1N \\
-  --username ${formData.email} \\
-  --group-name BuildingAdmins \\
-  --region ca-central-1
-
-# 3. Set Permanent Password:
-aws cognito-idp admin-set-user-password \\
-  --user-pool-id ca-central-1_UecP7kd1N \\
-  --username ${formData.email} \\
-  --password "${formData.password}" \\
-  --permanent \\
-  --region ca-central-1
-      `.trim();
-
-      console.log('Admin Creation Instructions:');
-      console.log(instructions);
-
-      // Also create record in DynamoDB for display
-      const result = await client.models.Admin.create({
+      console.log('🚀 Creating admin with Cognito...');
+      
+      // Use the createAdminWithCognito mutation
+      const result = await client.mutations.createAdminWithCognito({
         buildingCode: formData.buildingCode,
         managerCode: formData.managerCode,
         managerName: formData.managerName,
@@ -162,23 +138,18 @@ aws cognito-idp admin-set-user-password \\
         address: formData.address || null,
       });
 
-      if (result.data) {
-        // Copy to clipboard if possible
-        if (navigator.clipboard) {
-          await navigator.clipboard.writeText(instructions);
-          alert('✅ Admin record created!\n\n📋 AWS CLI commands copied to clipboard.\n\nPlease run them in PowerShell to create Cognito user.');
-        } else {
-          alert('✅ Admin record created!\n\n' + instructions);
-        }
+      console.log('📋 Result:', result);
 
+      if (result.data?.success) {
+        alert(`✅ Admin created successfully!\n\n👤 Username: ${result.data.cognitoUsername}\n🔑 Temporary Password: ${result.data.temporaryPassword}\n\n⚠️ User must change password on first login.`);
         resetForm();
         loadData();
       } else {
-        alert('❌ Failed to create admin record in database');
+        alert(`❌ Failed: ${result.data?.message || 'Unknown error'}`);
       }
       
     } catch (error: any) {
-      console.error('Error:', error);
+      console.error('❌ Error:', error);
       alert(`❌ خطا: ${error.message || 'Unknown error'}`);
     }
   };
