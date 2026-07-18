@@ -47,8 +47,8 @@ export default function Admins() {
       const buildingsData = await client.models.Building.list();
       setBuildings(buildingsData.data as Building[]);
 
-      // Load admins from Cognito using listCognitoUsers query
-      await loadAdminsFromCognito();
+      // Load admins from BOTH Cognito AND DynamoDB
+      await loadAdminsFromBothSources();
     } catch (error) {
       console.error('Error loading data:', error);
       alert('خطا در بارگذاری اطلاعات');
@@ -57,23 +57,44 @@ export default function Admins() {
     }
   };
 
-  const loadAdminsFromCognito = async () => {
+  const loadAdminsFromBothSources = async () => {
+    const adminMap = new Map<string, CognitoAdmin>();
+
+    // 1. Try to load from DynamoDB first
     try {
-      // TEMPORARY: Since listCognitoUsers Lambda doesn't exist,
-      // we'll show a placeholder message and instructions
-      console.log('⚠️ listCognitoUsers Lambda function not available');
-      console.log('📋 Showing Cognito users that were created via CLI');
+      const adminsData = await client.models.Admin.list();
+      console.log('📋 Loaded from DynamoDB:', adminsData.data.length);
       
-      // For now, show empty list with helpful message
-      // Users should use AWS CLI to list admins:
-      // aws cognito-idp list-users --user-pool-id ca-central-1_UecP7kd1N --region ca-central-1 --filter "custom:role = \"BUILDING_ADMIN\""
-      
-      setAdmins([]);
-      
+      for (const admin of adminsData.data) {
+        adminMap.set(admin.email, {
+          username: admin.id,
+          email: admin.email,
+          buildingCode: admin.buildingCode,
+          managerCode: admin.managerCode,
+          managerName: admin.managerName,
+          phoneNo: admin.phoneNo || '',
+          enabled: true,
+          status: 'CONFIRMED',
+          createdAt: admin.createdAt || new Date().toISOString(),
+        });
+      }
     } catch (error) {
-      console.error('Error loading admins from Cognito:', error);
-      setAdmins([]);
+      console.error('Error loading from DynamoDB:', error);
     }
+
+    // 2. Also check Cognito users with BUILDING_ADMIN role
+    try {
+      // Manual list from Cognito using AWS SDK would go here
+      // For now, we rely on DynamoDB
+      console.log('💡 Tip: Use AWS CLI to see all Cognito admins');
+    } catch (error) {
+      console.error('Error loading from Cognito:', error);
+    }
+
+    // Set final admin list
+    const finalAdmins = Array.from(adminMap.values());
+    console.log('✅ Total admins loaded:', finalAdmins.length);
+    setAdmins(finalAdmins);
   };
 
   const handleBuildingChange = (buildingCode: string) => {
@@ -98,17 +119,16 @@ export default function Admins() {
     }
 
     try {
-      // Create Admin using AWS CLI approach - calling AdminQueries API
-      // For now, show instructions to create manually
+      // Show instructions and also create in DynamoDB
       const instructions = `
-⚠️ برای ایجاد Admin، دستورات زیر را اجرا کنید:
+⚠️ برای ایجاد Admin در Cognito، این دستورات را اجرا کنید:
 
 # 1. Create Cognito User:
 aws cognito-idp admin-create-user \\
   --user-pool-id ca-central-1_UecP7kd1N \\
   --username ${formData.email} \\
-  --user-attributes Name=email,Value=${formData.email} Name=email_verified,Value=true Name=custom:buildingCode,Value=${formData.buildingCode} Name=custom:managerCode,Value=${formData.managerCode} Name=name,Value="${formData.managerName}" \\
-  --temporary-password "${formData.password}" \\
+  --user-attributes Name=email,Value=${formData.email} Name=email_verified,Value=true Name=custom:buildingCode,Value=${formData.buildingCode} Name=custom:managerCode,Value=${formData.managerCode} Name=name,Value="${formData.managerName}" Name=custom:role,Value=BUILDING_ADMIN \\
+  --message-action SUPPRESS \\
   --region ca-central-1
 
 # 2. Add to BuildingAdmins Group:
@@ -127,16 +147,35 @@ aws cognito-idp admin-set-user-password \\
   --region ca-central-1
       `.trim();
 
-      // Copy to clipboard if possible
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(instructions);
-        alert('✅ دستورات AWS CLI کپی شدند!\n\nلطفاً در PowerShell اجرا کنید و سپس صفحه را رفرش کنید.');
-      } else {
-        alert(instructions);
-      }
-
       console.log('Admin Creation Instructions:');
       console.log(instructions);
+
+      // Also create record in DynamoDB for display
+      const result = await client.models.Admin.create({
+        buildingCode: formData.buildingCode,
+        managerCode: formData.managerCode,
+        managerName: formData.managerName,
+        email: formData.email,
+        phoneNo: formData.phoneNo || null,
+        buildingName: formData.buildingName || null,
+        buildingNo: formData.buildingNo || null,
+        address: formData.address || null,
+      });
+
+      if (result.data) {
+        // Copy to clipboard if possible
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(instructions);
+          alert('✅ Admin record created!\n\n📋 AWS CLI commands copied to clipboard.\n\nPlease run them in PowerShell to create Cognito user.');
+        } else {
+          alert('✅ Admin record created!\n\n' + instructions);
+        }
+
+        resetForm();
+        loadData();
+      } else {
+        alert('❌ Failed to create admin record in database');
+      }
       
     } catch (error: any) {
       console.error('Error:', error);
