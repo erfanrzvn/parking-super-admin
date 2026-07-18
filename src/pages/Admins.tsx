@@ -1,23 +1,36 @@
 import { useState, useEffect } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
-import type { Admin, Building } from '../types';
+import type { Building } from '../types';
 import './Admins.css';
 
 const client = generateClient<Schema>();
 
+interface CognitoAdmin {
+  username: string;
+  email: string;
+  buildingCode: string;
+  managerCode: string;
+  managerName: string;
+  phoneNo?: string;
+  enabled: boolean;
+  status: string;
+  createdAt: string;
+}
+
 export default function Admins() {
-  const [admins, setAdmins] = useState<Admin[]>([]);
+  const [admins, setAdmins] = useState<CognitoAdmin[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingEmail, setEditingEmail] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     buildingCode: '',
     managerCode: '',
     managerName: '',
     phoneNo: '',
     email: '',
+    password: '',
     buildingName: '',
     buildingNo: '',
     address: '',
@@ -30,19 +43,53 @@ export default function Admins() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [adminsData, buildingsData] = await Promise.all([
-        client.models.Admin.list(),
-        client.models.Building.list(),
-      ]);
-      
-      console.log('📋 Loaded admins from DynamoDB:', adminsData.data.length);
-      setAdmins(adminsData.data as Admin[]);
+      // Load buildings from DynamoDB
+      const buildingsData = await client.models.Building.list();
       setBuildings(buildingsData.data as Building[]);
+
+      // Load admins from Cognito using listCognitoUsers query
+      await loadAdminsFromCognito();
     } catch (error) {
       console.error('Error loading data:', error);
       alert('خطا در بارگذاری اطلاعات');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAdminsFromCognito = async () => {
+    try {
+      const result = await client.queries.listCognitoUsers({
+        limit: 60,
+        filter: 'BUILDING_ADMIN'
+      });
+
+      console.log('Cognito users result:', result);
+
+      if (result.data?.items) {
+        const cognitoAdmins: CognitoAdmin[] = result.data.items
+          .filter((user: any) => user.userRole === 'BUILDING_ADMIN' || user.email?.includes('admin'))
+          .map((user: any) => ({
+            username: user.id,
+            email: user.email || '',
+            buildingCode: user.buildingCode || 'N/A',
+            managerCode: user.managerCode || 'N/A',
+            managerName: user.name || user.email?.split('@')[0] || 'Unknown',
+            phoneNo: user.phone || '',
+            enabled: user.isActive !== false,
+            status: user.isActive ? 'CONFIRMED' : 'DISABLED',
+            createdAt: user.createdAt || new Date().toISOString(),
+          }));
+        
+        console.log('📋 Loaded admins from Cognito:', cognitoAdmins.length);
+        setAdmins(cognitoAdmins);
+      } else {
+        setAdmins([]);
+      }
+    } catch (error) {
+      console.error('Error loading admins from Cognito:', error);
+      alert('خطا در بارگذاری ادمین‌ها از Cognito. لطفاً console را چک کنید.');
+      setAdmins([]);
     }
   };
 
@@ -62,76 +109,97 @@ export default function Admins() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    try {
-      if (editingId) {
-        // Update - only update DynamoDB record
-        await client.models.Admin.update({
-          id: editingId,
-          ...formData,
-        });
-        alert('✅ ادمین با موفقیت ویرایش شد');
-      } else {
-        // TEMPORARY FIX: Create Admin directly in DynamoDB
-        // Note: Cognito user must be created manually for now
-        const result = await client.models.Admin.create({
-          buildingCode: formData.buildingCode,
-          managerCode: formData.managerCode,
-          managerName: formData.managerName,
-          email: formData.email,
-          phoneNo: formData.phoneNo || null,
-          buildingName: formData.buildingName || null,
-          buildingNo: formData.buildingNo || null,
-          address: formData.address || null,
-        });
+    if (!formData.email || !formData.password) {
+      alert('❌ Email و Password الزامی هستند');
+      return;
+    }
 
-        if (result.data) {
-          alert(`✅ Admin record created in database!\n\n` +
-            `⚠️ NOTE: You need to manually create Cognito user:\n` +
-            `Email: ${formData.email}\n` +
-            `Group: BuildingAdmins\n` +
-            `Building Code: ${formData.buildingCode}`);
-        } else {
-          alert(`❌ Failed to create admin record`);
-          return;
-        }
+    try {
+      // Create Admin using AWS CLI approach - calling AdminQueries API
+      // For now, show instructions to create manually
+      const instructions = `
+⚠️ برای ایجاد Admin، دستورات زیر را اجرا کنید:
+
+# 1. Create Cognito User:
+aws cognito-idp admin-create-user \\
+  --user-pool-id ca-central-1_UecP7kd1N \\
+  --username ${formData.email} \\
+  --user-attributes Name=email,Value=${formData.email} Name=email_verified,Value=true Name=custom:buildingCode,Value=${formData.buildingCode} Name=custom:managerCode,Value=${formData.managerCode} Name=name,Value="${formData.managerName}" \\
+  --temporary-password "${formData.password}" \\
+  --region ca-central-1
+
+# 2. Add to BuildingAdmins Group:
+aws cognito-idp admin-add-user-to-group \\
+  --user-pool-id ca-central-1_UecP7kd1N \\
+  --username ${formData.email} \\
+  --group-name BuildingAdmins \\
+  --region ca-central-1
+
+# 3. Set Permanent Password:
+aws cognito-idp admin-set-user-password \\
+  --user-pool-id ca-central-1_UecP7kd1N \\
+  --username ${formData.email} \\
+  --password "${formData.password}" \\
+  --permanent \\
+  --region ca-central-1
+      `.trim();
+
+      // Copy to clipboard if possible
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(instructions);
+        alert('✅ دستورات AWS CLI کپی شدند!\n\nلطفاً در PowerShell اجرا کنید و سپس صفحه را رفرش کنید.');
+      } else {
+        alert(instructions);
       }
 
-      resetForm();
-      loadData();
+      console.log('Admin Creation Instructions:');
+      console.log(instructions);
+      
     } catch (error: any) {
-      console.error('Error saving admin:', error);
-      alert(`❌ خطا در ذخیره ادمین: ${error.message || 'Unknown error'}`);
+      console.error('Error:', error);
+      alert(`❌ خطا: ${error.message || 'Unknown error'}`);
     }
   };
 
-  const handleEdit = (admin: Admin) => {
-    setEditingId(admin.id);
+  const handleEdit = (admin: CognitoAdmin) => {
+    setEditingEmail(admin.email);
     setFormData({
       buildingCode: admin.buildingCode,
       managerCode: admin.managerCode,
       managerName: admin.managerName,
       phoneNo: admin.phoneNo || '',
       email: admin.email,
-      buildingName: admin.buildingName || '',
-      buildingNo: admin.buildingNo || '',
-      address: admin.address || '',
+      password: '', // Not editable
+      buildingName: '',
+      buildingNo: '',
+      address: '',
     });
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`آیا از حذف ادمین "${name}" اطمینان دارید؟`)) {
+  const handleDelete = async (email: string, name: string) => {
+    if (!confirm(`آیا از حذف ادمین "${name}" اطمینان دارید؟\n\nاین کار user را از Cognito حذف می‌کند.`)) {
       return;
     }
 
-    try {
-      await client.models.Admin.delete({ id });
-      alert('✅ ادمین با موفقیت حذف شد');
-      loadData();
-    } catch (error) {
-      console.error('Error deleting admin:', error);
-      alert('❌ خطا در حذف ادمین');
+    const instructions = `
+⚠️ برای حذف Admin، این دستور را اجرا کنید:
+
+aws cognito-idp admin-delete-user \\
+  --user-pool-id ca-central-1_UecP7kd1N \\
+  --username ${email} \\
+  --region ca-central-1
+    `.trim();
+
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(instructions);
+      alert('✅ دستور AWS CLI کپی شد!\n\nلطفاً در PowerShell اجرا کنید و سپس صفحه را رفرش کنید.');
+    } else {
+      alert(instructions);
     }
+
+    console.log('Admin Deletion Instruction:');
+    console.log(instructions);
   };
 
   const resetForm = () => {
@@ -141,11 +209,12 @@ export default function Admins() {
       managerName: '',
       phoneNo: '',
       email: '',
+      password: '',
       buildingName: '',
       buildingNo: '',
       address: '',
     });
-    setEditingId(null);
+    setEditingEmail(null);
     setShowForm(false);
   };
 
@@ -230,8 +299,23 @@ export default function Admins() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="admin@building1.com"
+                  disabled={!!editingEmail}
                 />
                 <small>ایمیل برای ورود به سیستم</small>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password">Password *</label>
+                <input
+                  id="password"
+                  type="password"
+                  required={!editingEmail}
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  placeholder="Admin@123"
+                  minLength={8}
+                />
+                <small>رمز عبور حداقل 8 کاراکتر (شامل حرف بزرگ، کوچک، عدد و نماد)</small>
               </div>
 
               <div className="form-group">
@@ -264,7 +348,7 @@ export default function Admins() {
 
             <div className="form-actions">
               <button type="submit" className="btn-primary">
-                {editingId ? '💾 Save Changes' : '✅ Add Admin'}
+                {editingEmail ? '📋 Copy Update Commands' : '✅ Copy Create Commands'}
               </button>
               <button type="button" className="btn-secondary" onClick={resetForm}>
                 ❌ Cancel
@@ -284,7 +368,7 @@ export default function Admins() {
         ) : (
           <div className="admins-grid">
             {admins.map((admin) => (
-              <div key={admin.id} className="admin-card">
+              <div key={admin.username} className="admin-card">
                 <div className="admin-header">
                   <div>
                     <h3>{admin.managerName}</h3>
@@ -305,14 +389,17 @@ export default function Admins() {
                     </div>
                   )}
                   <div className="detail-row">
-                    <span className="detail-icon">🏢</span>
+                    <span className="detail-icon">✅</span>
                     <span className="detail-value">
-                      {admin.buildingName || 'N/A'} ({admin.buildingNo || 'N/A'})
+                      Status: {admin.status}
+                      {!admin.enabled && ' (Disabled)'}
                     </span>
                   </div>
                   <div className="detail-row">
-                    <span className="detail-icon">📍</span>
-                    <span className="detail-value">{admin.address || 'N/A'}</span>
+                    <span className="detail-icon">📅</span>
+                    <span className="detail-value">
+                      Created: {new Date(admin.createdAt).toLocaleDateString('fa-IR')}
+                    </span>
                   </div>
                 </div>
 
@@ -322,7 +409,7 @@ export default function Admins() {
                   </button>
                   <button
                     className="btn-icon delete"
-                    onClick={() => handleDelete(admin.id, admin.managerName)}
+                    onClick={() => handleDelete(admin.email, admin.managerName)}
                   >
                     🗑️ Delete
                   </button>
