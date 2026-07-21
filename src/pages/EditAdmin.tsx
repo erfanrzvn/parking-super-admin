@@ -27,6 +27,9 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
   const [formData, setFormData] = useState({
     managerName: '',
     phoneNo: '',
+    managerCode: '',
+    buildingCode: '',
+    email: '',
   });
 
   useEffect(() => {
@@ -96,6 +99,9 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
       setFormData({
         managerName: adminData.managerName,
         phoneNo: adminData.phoneNo,
+        managerCode: adminData.managerCode,
+        buildingCode: adminData.buildingCode,
+        email: adminData.email,
       });
       setSelectedParkingIds(assignedParkingIds);
 
@@ -132,8 +138,85 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
         parkings: selectedParkingIds,
       });
 
+      // Validate unique codes and email
+      if (formData.managerCode !== admin.managerCode || formData.email !== admin.email) {
+        console.log('🔍 Checking for duplicate codes/emails...');
+        
+        // Check if managerCode is unique
+        if (formData.managerCode !== admin.managerCode) {
+          const existingAdminsWithCode = await client.models.Admin.list({
+            filter: { managerCode: { eq: formData.managerCode } },
+          });
+          
+          if (existingAdminsWithCode.data.length > 0) {
+            alert(`❌ کد مدیر "${formData.managerCode}" قبلاً استفاده شده است!\n\nلطفاً یک کد یکتای دیگر انتخاب کنید.`);
+            setSaving(false);
+            return;
+          }
+        }
+
+        // Check if email is unique
+        if (formData.email !== admin.email) {
+          const existingAdminsWithEmail = await client.models.Admin.list({
+            filter: { email: { eq: formData.email } },
+          });
+          
+          if (existingAdminsWithEmail.data.length > 0) {
+            alert(`❌ ایمیل "${formData.email}" قبلاً استفاده شده است!\n\nلطفاً یک ایمیل یکتای دیگر انتخاب کنید.`);
+            setSaving(false);
+            return;
+          }
+
+          // Also check Cognito for email uniqueness
+          try {
+            const { CognitoIdentityProviderClient, ListUsersCommand } = 
+              await import('@aws-sdk/client-cognito-identity-provider');
+            const { fetchAuthSession } = await import('aws-amplify/auth');
+
+            const session = await fetchAuthSession();
+            const credentials = session.credentials;
+
+            if (credentials) {
+              const cognitoClient = new CognitoIdentityProviderClient({
+                region: 'ca-central-1',
+                credentials: {
+                  accessKeyId: credentials.accessKeyId,
+                  secretAccessKey: credentials.secretAccessKey,
+                  sessionToken: credentials.sessionToken,
+                },
+              });
+
+              const listCommand = new ListUsersCommand({
+                UserPoolId: 'ca-central-1_UecP7kd1N',
+                Filter: `email = "${formData.email}"`,
+                Limit: 1,
+              });
+
+              const response = await cognitoClient.send(listCommand);
+              
+              // If we found a user with this email and it's not the current admin
+              if (response.Users && response.Users.length > 0) {
+                const foundUser = response.Users[0];
+                if (foundUser.Username !== adminUsername) {
+                  alert(`❌ ایمیل "${formData.email}" قبلاً در Cognito استفاده شده است!\n\nلطفاً یک ایمیل یکتای دیگر انتخاب کنید.`);
+                  setSaving(false);
+                  return;
+                }
+              }
+            }
+          } catch (cognitoError) {
+            console.warn('Could not check Cognito for email uniqueness:', cognitoError);
+          }
+        }
+      }
+
       // Update Cognito attributes if changed
-      if (formData.managerName !== admin.managerName || formData.phoneNo !== admin.phoneNo) {
+      const cognitoAttributesChanged = 
+        formData.managerName !== admin.managerName || 
+        formData.phoneNo !== admin.phoneNo ||
+        formData.email !== admin.email;
+
+      if (cognitoAttributesChanged) {
         const { CognitoIdentityProviderClient, AdminUpdateUserAttributesCommand } = 
           await import('@aws-sdk/client-cognito-identity-provider');
         const { fetchAuthSession } = await import('aws-amplify/auth');
@@ -161,6 +244,10 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
         if (formData.phoneNo !== admin.phoneNo) {
           attributes.push({ Name: 'phone_number', Value: formData.phoneNo || '' });
         }
+        if (formData.email !== admin.email) {
+          attributes.push({ Name: 'email', Value: formData.email });
+          attributes.push({ Name: 'email_verified', Value: 'true' }); // Auto-verify
+        }
 
         if (attributes.length > 0) {
           const updateCommand = new AdminUpdateUserAttributesCommand({
@@ -172,11 +259,33 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
           await cognitoClient.send(updateCommand);
           console.log('✅ Updated Cognito attributes');
         }
+
+        // If managerCode or buildingCode changed, update custom attributes
+        if (formData.managerCode !== admin.managerCode || formData.buildingCode !== admin.buildingCode) {
+          const customAttributes = [];
+          if (formData.managerCode !== admin.managerCode) {
+            customAttributes.push({ Name: 'custom:managerCode', Value: formData.managerCode });
+          }
+          if (formData.buildingCode !== admin.buildingCode) {
+            customAttributes.push({ Name: 'custom:buildingCode', Value: formData.buildingCode });
+          }
+
+          if (customAttributes.length > 0) {
+            const updateCustomCommand = new AdminUpdateUserAttributesCommand({
+              UserPoolId: 'ca-central-1_UecP7kd1N',
+              Username: adminUsername,
+              UserAttributes: customAttributes,
+            });
+
+            await cognitoClient.send(updateCustomCommand);
+            console.log('✅ Updated Cognito custom attributes');
+          }
+        }
       }
 
       // Update parking assignments in DynamoDB
       const existingAdmins = await client.models.Admin.list({
-        filter: { email: { eq: admin.email } },
+        filter: { email: { eq: admin.email } }, // Use old email to find record
       });
 
       if (existingAdmins.data.length > 0) {
@@ -187,15 +296,18 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
           assignedParkingIds: selectedParkingIds,
           managerName: formData.managerName,
           phoneNo: formData.phoneNo || undefined,
+          managerCode: formData.managerCode,
+          buildingCode: formData.buildingCode,
+          email: formData.email,
         });
         console.log('✅ Updated admin record');
       } else {
         // Create new admin record
         await client.models.Admin.create({
-          buildingCode: admin.buildingCode,
-          managerCode: admin.managerCode,
+          buildingCode: formData.buildingCode,
+          managerCode: formData.managerCode,
           managerName: formData.managerName,
-          email: admin.email,
+          email: formData.email,
           phoneNo: formData.phoneNo || undefined,
           cognitoUsername: admin.username,
           assignedParkingIds: selectedParkingIds,
@@ -253,39 +365,42 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
           <h2>👤 Admin Information</h2>
           <div className="form-grid">
             <div className="form-group">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">Email *</label>
               <input
                 id="email"
                 type="email"
-                value={admin.email}
-                disabled
-                className="input-disabled"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="admin@building1.com"
+                required
               />
-              <small>ایمیل قابل تغییر نیست</small>
+              <small>ایمیل برای ورود به سیستم (باید یکتا باشد)</small>
             </div>
 
             <div className="form-group">
-              <label htmlFor="buildingCode">Building Code</label>
+              <label htmlFor="buildingCode">Building Code *</label>
               <input
                 id="buildingCode"
                 type="text"
-                value={admin.buildingCode}
-                disabled
-                className="input-disabled"
+                value={formData.buildingCode}
+                onChange={(e) => setFormData({ ...formData, buildingCode: e.target.value })}
+                placeholder="BLD001"
+                required
               />
-              <small>کد ساختمان قابل تغییر نیست</small>
+              <small>کد ساختمان (باید یکتا باشد)</small>
             </div>
 
             <div className="form-group">
-              <label htmlFor="managerCode">Manager Code</label>
+              <label htmlFor="managerCode">Manager Code *</label>
               <input
                 id="managerCode"
                 type="text"
-                value={admin.managerCode}
-                disabled
-                className="input-disabled"
+                value={formData.managerCode}
+                onChange={(e) => setFormData({ ...formData, managerCode: e.target.value })}
+                placeholder="MGR001"
+                required
               />
-              <small>کد مدیر قابل تغییر نیست</small>
+              <small>کد مدیر (باید یکتا باشد)</small>
             </div>
 
             <div className="form-group">
