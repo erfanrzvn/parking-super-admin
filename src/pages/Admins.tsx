@@ -452,7 +452,7 @@ export default function Admins() {
       <div className="page-header">
         <div>
           <h1>👥 Building Admins Management</h1>
-          <p className="page-subtitle">Manage building administrators</p>
+          <p className="page-subtitle">Manage building administrators with parking assignments</p>
         </div>
         <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
           {showForm ? '❌ Cancel' : '➕ Add Admin'}
