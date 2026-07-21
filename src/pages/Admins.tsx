@@ -16,14 +16,27 @@ interface CognitoAdmin {
   enabled: boolean;
   status: string;
   createdAt: string;
+  assignedParkingIds?: string[];
+}
+
+interface Parking {
+  id: string;
+  buildingCode: string;
+  parkingName?: string;
+  parkingNo: string;
+  buildingName?: string;
 }
 
 export default function Admins() {
   const [admins, setAdmins] = useState<CognitoAdmin[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
+  const [parkings, setParkings] = useState<Parking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingEmail, setEditingEmail] = useState<string | null>(null);
+  const [editingUsername, setEditingUsername] = useState<string | null>(null);
+  const [showParkingAssign, setShowParkingAssign] = useState(false);
+  const [selectedAdminForParking, setSelectedAdminForParking] = useState<CognitoAdmin | null>(null);
+  const [selectedParkingIds, setSelectedParkingIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     buildingCode: '',
     managerCode: '',
@@ -46,6 +59,10 @@ export default function Admins() {
       // Load buildings from DynamoDB
       const buildingsData = await client.models.Building.list();
       setBuildings(buildingsData.data as Building[]);
+
+      // Load parkings from DynamoDB
+      const parkingsData = await client.models.Parking.list();
+      setParkings(parkingsData.data as Parking[]);
 
       // Load admins from BOTH Cognito AND DynamoDB
       await loadAdminsFromBothSources();
@@ -119,6 +136,19 @@ export default function Admins() {
             console.warn(`Could not get groups for ${user.Username}:`, error);
           }
 
+          // Get parking assignments from DynamoDB Admin table
+          let assignedParkingIds: string[] = [];
+          try {
+            const adminRecords = await client.models.Admin.list({
+              filter: { email: { eq: attributes.email } },
+            });
+            if (adminRecords.data.length > 0) {
+              assignedParkingIds = adminRecords.data[0].assignedParkingIds || [];
+            }
+          } catch (error) {
+            console.warn(`Could not get parking assignments for ${attributes.email}:`, error);
+          }
+
           cognitoAdmins.push({
             username: user.Username || '',
             email: attributes.email || '',
@@ -129,6 +159,7 @@ export default function Admins() {
             enabled: user.Enabled || false,
             status: user.UserStatus || 'UNKNOWN',
             createdAt: user.UserCreateDate?.toISOString() || new Date().toISOString(),
+            assignedParkingIds,
           });
         }
       }
@@ -198,7 +229,7 @@ export default function Admins() {
   };
 
   const handleEdit = (admin: CognitoAdmin) => {
-    setEditingEmail(admin.email);
+    setEditingUsername(admin.username);
     setFormData({
       buildingCode: admin.buildingCode,
       managerCode: admin.managerCode,
@@ -211,6 +242,67 @@ export default function Admins() {
       address: '',
     });
     setShowForm(true);
+  };
+
+  const handleAssignParkings = async (admin: CognitoAdmin) => {
+    setSelectedAdminForParking(admin);
+    setSelectedParkingIds(admin.assignedParkingIds || []);
+    setShowParkingAssign(true);
+  };
+
+  const handleSaveParkingAssignments = async () => {
+    if (!selectedAdminForParking) return;
+
+    try {
+      console.log('💾 Saving parking assignments...', {
+        admin: selectedAdminForParking.email,
+        parkings: selectedParkingIds,
+      });
+
+      // Find or create admin in DynamoDB
+      const existingAdmins = await client.models.Admin.list({
+        filter: { email: { eq: selectedAdminForParking.email } },
+      });
+
+      if (existingAdmins.data.length > 0) {
+        // Update existing admin
+        const adminId = existingAdmins.data[0].id;
+        await client.models.Admin.update({
+          id: adminId,
+          assignedParkingIds: selectedParkingIds,
+        });
+        console.log('✅ Updated admin parking assignments');
+      } else {
+        // Create new admin record with parking assignments
+        await client.models.Admin.create({
+          buildingCode: selectedAdminForParking.buildingCode,
+          managerCode: selectedAdminForParking.managerCode,
+          managerName: selectedAdminForParking.managerName,
+          email: selectedAdminForParking.email,
+          phoneNo: selectedAdminForParking.phoneNo,
+          cognitoUsername: selectedAdminForParking.username,
+          assignedParkingIds: selectedParkingIds,
+        });
+        console.log('✅ Created admin record with parking assignments');
+      }
+
+      alert(`✅ Parking assignments saved successfully!\n\n${selectedParkingIds.length} parkings assigned to ${selectedAdminForParking.managerName}`);
+      setShowParkingAssign(false);
+      setSelectedAdminForParking(null);
+      setSelectedParkingIds([]);
+      await loadData(); // Reload to show updated assignments
+    } catch (error: any) {
+      console.error('❌ Error saving parking assignments:', error);
+      alert(`❌ خطا در ذخیره: ${error.message}`);
+    }
+  };
+
+  const toggleParkingSelection = (parkingId: string) => {
+    if (selectedParkingIds.includes(parkingId)) {
+      setSelectedParkingIds(selectedParkingIds.filter(id => id !== parkingId));
+    } else {
+      setSelectedParkingIds([...selectedParkingIds, parkingId]);
+    }
   };
 
   const handleDelete = async (username: string, name: string) => {
@@ -341,7 +433,7 @@ export default function Admins() {
       buildingNo: '',
       address: '',
     });
-    setEditingEmail(null);
+    setEditingUsername(null);
     setShowForm(false);
   };
 
@@ -368,7 +460,7 @@ export default function Admins() {
 
       {showForm && (
         <div className="form-card">
-          <h2>{editingEmail ? '📝 Edit Admin' : '➕ Add New Admin'}</h2>
+          <h2>{editingUsername ? '📝 Edit Admin' : '➕ Add New Admin'}</h2>
           <form onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -378,7 +470,7 @@ export default function Admins() {
                   required
                   value={formData.buildingCode}
                   onChange={(e) => handleBuildingChange(e.target.value)}
-                  disabled={!!editingEmail}
+                  disabled={!!editingUsername}
                 >
                   <option value="">Select Building</option>
                   {buildings.map((building) => (
@@ -399,7 +491,7 @@ export default function Admins() {
                   value={formData.managerCode}
                   onChange={(e) => setFormData({ ...formData, managerCode: e.target.value })}
                   placeholder="MGR001"
-                  disabled={!!editingEmail}
+                  disabled={!!editingUsername}
                 />
                 <small>کد یکتا برای مدیر (مثلا MGR001)</small>
               </div>
@@ -426,7 +518,7 @@ export default function Admins() {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="admin@building1.com"
-                  disabled={!!editingEmail}
+                  disabled={!!editingUsername}
                 />
                 <small>ایمیل برای ورود به سیستم</small>
               </div>
@@ -436,7 +528,7 @@ export default function Admins() {
                 <input
                   id="password"
                   type="password"
-                  required={!editingEmail}
+                  required={!editingUsername}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="Admin@123"
@@ -475,7 +567,7 @@ export default function Admins() {
 
             <div className="form-actions">
               <button type="submit" className="btn-primary">
-                {editingEmail ? '📋 Copy Update Commands' : '✅ Copy Create Commands'}
+                {editingUsername ? '✅ Update Admin' : '➕ Create Admin'}
               </button>
               <button type="button" className="btn-secondary" onClick={resetForm}>
                 ❌ Cancel
@@ -530,6 +622,12 @@ export default function Admins() {
                     </span>
                   </div>
                   <div className="detail-row">
+                    <span className="detail-icon">🅿️</span>
+                    <span className="detail-value">
+                      Assigned Parkings: {admin.assignedParkingIds?.length || 0}
+                    </span>
+                  </div>
+                  <div className="detail-row">
                     <span className="detail-icon">📅</span>
                     <span className="detail-value">
                       Created: {new Date(admin.createdAt).toLocaleDateString('fa-IR')}
@@ -538,6 +636,9 @@ export default function Admins() {
                 </div>
 
                 <div className="admin-actions">
+                  <button className="btn-icon assign" onClick={() => handleAssignParkings(admin)}>
+                    🅿️ Assign Parkings
+                  </button>
                   <button className="btn-icon edit" onClick={() => handleEdit(admin)}>
                     📝 Edit
                   </button>
@@ -561,6 +662,59 @@ export default function Admins() {
           </div>
         )}
       </div>
+
+      {/* Parking Assignment Modal */}
+      {showParkingAssign && selectedAdminForParking && (
+        <div className="modal-overlay" onClick={() => setShowParkingAssign(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>🅿️ Assign Parkings to {selectedAdminForParking.managerName}</h2>
+              <button className="modal-close" onClick={() => setShowParkingAssign(false)}>
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <p className="modal-description">
+                Select which parkings this admin can manage. They will only have access to these specific parkings.
+              </p>
+
+              <div className="parking-selection">
+                {parkings
+                  .filter((p) => p.buildingCode === selectedAdminForParking.buildingCode)
+                  .map((parking) => (
+                    <label key={parking.id} className="parking-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={selectedParkingIds.includes(parking.id)}
+                        onChange={() => toggleParkingSelection(parking.id)}
+                      />
+                      <div className="parking-info">
+                        <strong>{parking.parkingName || parking.parkingNo}</strong>
+                        <span className="parking-no">#{parking.parkingNo}</span>
+                      </div>
+                    </label>
+                  ))}
+                
+                {parkings.filter((p) => p.buildingCode === selectedAdminForParking.buildingCode).length === 0 && (
+                  <div className="empty-state-small">
+                    <p>No parkings found for building {selectedAdminForParking.buildingCode}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn-primary" onClick={handleSaveParkingAssignments}>
+                ✅ Save Assignments ({selectedParkingIds.length} selected)
+              </button>
+              <button className="btn-secondary" onClick={() => setShowParkingAssign(false)}>
+                ❌ Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
