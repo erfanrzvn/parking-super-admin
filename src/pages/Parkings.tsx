@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
 import type { Parking, Building } from '../types';
+import ParkingSpots from './ParkingSpots';
 import './Parkings.css';
 
 const client = generateClient<Schema>();
@@ -13,6 +14,7 @@ export default function Parkings() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [filterBuilding, setFilterBuilding] = useState('');
+  const [selectedParking, setSelectedParking] = useState<Parking | null>(null);
   const [formData, setFormData] = useState({
     buildingCode: '',
     buildingName: '',
@@ -132,6 +134,18 @@ export default function Parkings() {
   const guestParkings = filteredParkings.filter((p) =>
     p.parkingName?.toLowerCase().includes('guest')
   );
+
+  // If a parking is selected, show Spots page
+  if (selectedParking) {
+    return (
+      <ParkingSpots
+        parkingId={selectedParking.id}
+        parkingName={selectedParking.parkingName || ''}
+        parkingNo={selectedParking.parkingNo}
+        onBack={() => setSelectedParking(null)}
+      />
+    );
+  }
 
   if (loading) {
     return (
@@ -350,6 +364,13 @@ export default function Parkings() {
                   </div>
 
                   <div className="parking-actions">
+                    <button
+                      className="btn-primary"
+                      style={{ marginRight: '8px' }}
+                      onClick={() => setSelectedParking(parking)}
+                    >
+                      🅿️ Manage Spots
+                    </button>
                     <button className="btn-icon edit" onClick={() => handleEdit(parking)}>
                       📝 Edit
                     </button>
