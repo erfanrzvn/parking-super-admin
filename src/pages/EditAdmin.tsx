@@ -76,17 +76,74 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
         }
       }
 
-      // Get parking assignments from DynamoDB
+      // Get parking assignments from DynamoDB - BYPASS CACHE
       let assignedParkingIds: string[] = [];
-      const adminRecords = await client.models.Admin.list({
-        filter: { email: { eq: attributes.email } },
-      });
       
-      console.log('📊 Admin records from DynamoDB:', adminRecords.data);
-      
-      if (adminRecords.data.length > 0) {
-        assignedParkingIds = adminRecords.data[0].assignedParkingIds || [];
-        console.log('🅿️ Assigned parking IDs:', assignedParkingIds);
+      // Use raw GraphQL query to bypass cache
+      try {
+        const { post } = await import('aws-amplify/api');
+        const { fetchAuthSession } = await import('aws-amplify/auth');
+        
+        const session = await fetchAuthSession();
+        const authToken = session.tokens?.idToken?.toString();
+        
+        if (!authToken) {
+          throw new Error('No auth token available');
+        }
+
+        const apiEndpoint = 'https://dp457mgtrvdkfod6o6mmhpoy74.appsync-api.ca-central-1.amazonaws.com/graphql';
+        
+        const query = `
+          query ListAdmins($filter: ModelAdminFilterInput) {
+            listAdmins(filter: $filter) {
+              items {
+                id
+                email
+                assignedParkingIds
+              }
+            }
+          }
+        `;
+        
+        const variables = {
+          filter: {
+            email: { eq: attributes.email }
+          }
+        };
+
+        const response = await fetch(apiEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': authToken,
+            'x-amz-user-agent': 'aws-amplify',
+          },
+          body: JSON.stringify({
+            query,
+            variables,
+          }),
+        });
+
+        const result = await response.json();
+        console.log('📊 GraphQL API result:', result);
+        
+        if (result.data?.listAdmins?.items?.[0]) {
+          assignedParkingIds = result.data.listAdmins.items[0].assignedParkingIds || [];
+          console.log('🅿️ Assigned parking IDs from GraphQL:', assignedParkingIds);
+        }
+      } catch (graphqlError) {
+        console.error('❌ Error fetching from GraphQL:', graphqlError);
+        // Fallback to Amplify client
+        const adminRecords = await client.models.Admin.list({
+          filter: { email: { eq: attributes.email } },
+        });
+        
+        console.log('📊 Admin records from Amplify (fallback):', adminRecords.data);
+        
+        if (adminRecords.data.length > 0) {
+          assignedParkingIds = adminRecords.data[0].assignedParkingIds || [];
+          console.log('🅿️ Assigned parking IDs from Amplify:', assignedParkingIds);
+        }
       }
 
       const adminData = {
