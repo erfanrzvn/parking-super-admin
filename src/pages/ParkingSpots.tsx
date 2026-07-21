@@ -26,11 +26,29 @@ interface ParkingSpotsProps {
   onBack: () => void;
 }
 
+interface Reservation {
+  id: string;
+  spotId: string;
+  startTime: string;
+  endTime: string;
+  vehicleCode?: string;
+  accessNo: string;
+  phone?: string;
+  email?: string;
+  buildingCode: string;
+  reservedBy?: string;
+  status?: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+  createdAt?: string;
+}
+
 export default function ParkingSpots({ parkingId, parkingName, parkingNo, onBack }: ParkingSpotsProps) {
   const [spots, setSpots] = useState<ParkingSpot[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedSpotForReservations, setSelectedSpotForReservations] = useState<ParkingSpot | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loadingReservations, setLoadingReservations] = useState(false);
   const [formData, setFormData] = useState({
     spotNumber: '',
     spotType: 'REGULAR' as 'ELECTRIC' | 'REGULAR' | 'GUEST',
@@ -140,7 +158,141 @@ export default function ParkingSpots({ parkingId, parkingName, parkingNo, onBack
     setShowForm(false);
   };
 
+  const loadReservationsForSpot = async (spot: ParkingSpot) => {
+    setSelectedSpotForReservations(spot);
+    setLoadingReservations(true);
+    try {
+      const reservationsData = await client.models.Reserving.list({
+        filter: { spotId: { eq: spot.id } }
+      });
+      
+      const sorted = (reservationsData.data as Reservation[]).sort(
+        (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
+      
+      setReservations(sorted);
+    } catch (error) {
+      console.error('Error loading reservations:', error);
+      alert('خطا در بارگذاری رزروها');
+    } finally {
+      setLoadingReservations(false);
+    }
+  };
+
+  const getReservationStatus = (startTime: string, endTime: string) => {
+    const now = new Date();
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (now < start) return 'upcoming';
+    if (now >= start && now <= end) return 'active';
+    return 'past';
+  };
+
   const availableSpots = spots.filter((s) => s.isAvailable).length;
+
+  // If showing reservations for a spot
+  if (selectedSpotForReservations) {
+    return (
+      <div className="parking-spots-page">
+        <div className="page-header">
+          <div>
+            <button className="btn-back" onClick={() => setSelectedSpotForReservations(null)}>
+              ← بازگشت به Spots
+            </button>
+            <h1>📅 Reservations - Spot {selectedSpotForReservations.spotNumber}</h1>
+            <p className="page-subtitle">
+              Parking: <strong>{parkingNo}</strong> | All reservations for this spot
+            </p>
+          </div>
+        </div>
+
+        {loadingReservations ? (
+          <div className="page-loading">
+            <div className="spinner"></div>
+            <p>Loading reservations...</p>
+          </div>
+        ) : reservations.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-icon">📅</div>
+            <h3>No reservations yet</h3>
+            <p>This spot has no reservations</p>
+          </div>
+        ) : (
+          <div className="reservations-list">
+            {reservations.map((reservation) => {
+              const status = getReservationStatus(reservation.startTime, reservation.endTime);
+              const startDate = new Date(reservation.startTime);
+              const endDate = new Date(reservation.endTime);
+
+              return (
+                <div key={reservation.id} className={`reservation-card ${status}`}>
+                  <div className="reservation-header">
+                    <div>
+                      <h3>Access Code: {reservation.accessNo}</h3>
+                      <span className={`status-badge ${status}`}>
+                        {status === 'active' && '✅ Active'}
+                        {status === 'upcoming' && '🔜 Upcoming'}
+                        {status === 'past' && '✔️ Past'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="reservation-details">
+                    <div className="detail-row">
+                      <span className="detail-icon">📅</span>
+                      <div className="detail-content">
+                        <strong>Start:</strong> {startDate.toLocaleString('en-CA')}
+                      </div>
+                    </div>
+
+                    <div className="detail-row">
+                      <span className="detail-icon">⏱️</span>
+                      <div className="detail-content">
+                        <strong>End:</strong> {endDate.toLocaleString('en-CA')}
+                      </div>
+                    </div>
+
+                    {reservation.vehicleCode && (
+                      <div className="detail-row">
+                        <span className="detail-icon">🚗</span>
+                        <div className="detail-content">
+                          <strong>Vehicle:</strong> {reservation.vehicleCode}
+                        </div>
+                      </div>
+                    )}
+
+                    {reservation.phone && (
+                      <div className="detail-row">
+                        <span className="detail-icon">📞</span>
+                        <div className="detail-content">{reservation.phone}</div>
+                      </div>
+                    )}
+
+                    {reservation.email && (
+                      <div className="detail-row">
+                        <span className="detail-icon">📧</span>
+                        <div className="detail-content">{reservation.email}</div>
+                      </div>
+                    )}
+
+                    {reservation.reservedBy && (
+                      <div className="detail-row">
+                        <span className="detail-icon">👤</span>
+                        <div className="detail-content">
+                          <strong>Reserved by:</strong> {reservation.reservedBy}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -341,6 +493,13 @@ export default function ParkingSpots({ parkingId, parkingName, parkingNo, onBack
                   </div>
 
                   <div className="spot-actions">
+                    <button
+                      className="btn-primary"
+                      style={{ marginRight: '8px' }}
+                      onClick={() => loadReservationsForSpot(spot)}
+                    >
+                      📅 View Reservations
+                    </button>
                     <button className="btn-icon edit" onClick={() => handleEdit(spot)}>
                       📝 Edit
                     </button>
