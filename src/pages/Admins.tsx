@@ -27,16 +27,17 @@ interface Parking {
   buildingName?: string;
 }
 
-export default function Admins() {
+interface AdminsProps {
+  onEditAdmin?: (username: string) => void;
+}
+
+export default function Admins({ onEditAdmin }: AdminsProps) {
   const [admins, setAdmins] = useState<CognitoAdmin[]>([]);
   const [buildings, setBuildings] = useState<Building[]>([]);
   const [parkings, setParkings] = useState<Parking[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingUsername, setEditingUsername] = useState<string | null>(null);
-  const [showParkingAssign, setShowParkingAssign] = useState(false);
-  const [selectedAdminForParking, setSelectedAdminForParking] = useState<CognitoAdmin | null>(null);
-  const [selectedParkingIds, setSelectedParkingIds] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     buildingCode: '',
     managerCode: '',
@@ -229,80 +230,8 @@ export default function Admins() {
   };
 
   const handleEdit = (admin: CognitoAdmin) => {
-    setEditingUsername(admin.username);
-    setFormData({
-      buildingCode: admin.buildingCode,
-      managerCode: admin.managerCode,
-      managerName: admin.managerName,
-      phoneNo: admin.phoneNo || '',
-      email: admin.email,
-      password: '', // Not editable
-      buildingName: '',
-      buildingNo: '',
-      address: '',
-    });
-    setShowForm(true);
-  };
-
-  const handleAssignParkings = async (admin: CognitoAdmin) => {
-    setSelectedAdminForParking(admin);
-    // Pre-select already assigned parkings
-    setSelectedParkingIds(admin.assignedParkingIds || []);
-    setShowParkingAssign(true);
-  };
-
-  const handleSaveParkingAssignments = async () => {
-    if (!selectedAdminForParking) return;
-
-    try {
-      console.log('💾 Saving parking assignments...', {
-        admin: selectedAdminForParking.email,
-        parkings: selectedParkingIds,
-      });
-
-      // Find or create admin in DynamoDB
-      const existingAdmins = await client.models.Admin.list({
-        filter: { email: { eq: selectedAdminForParking.email } },
-      });
-
-      if (existingAdmins.data.length > 0) {
-        // Update existing admin
-        const adminId = existingAdmins.data[0].id;
-        await client.models.Admin.update({
-          id: adminId,
-          assignedParkingIds: selectedParkingIds,
-        });
-        console.log('✅ Updated admin parking assignments');
-      } else {
-        // Create new admin record with parking assignments
-        await client.models.Admin.create({
-          buildingCode: selectedAdminForParking.buildingCode,
-          managerCode: selectedAdminForParking.managerCode,
-          managerName: selectedAdminForParking.managerName,
-          email: selectedAdminForParking.email,
-          phoneNo: selectedAdminForParking.phoneNo,
-          cognitoUsername: selectedAdminForParking.username,
-          assignedParkingIds: selectedParkingIds,
-        });
-        console.log('✅ Created admin record with parking assignments');
-      }
-
-      alert(`✅ Parking assignments saved successfully!\n\n${selectedParkingIds.length} parkings assigned to ${selectedAdminForParking.managerName}`);
-      setShowParkingAssign(false);
-      setSelectedAdminForParking(null);
-      setSelectedParkingIds([]);
-      await loadData(); // Reload to show updated assignments
-    } catch (error: any) {
-      console.error('❌ Error saving parking assignments:', error);
-      alert(`❌ خطا در ذخیره: ${error.message}`);
-    }
-  };
-
-  const toggleParkingSelection = (parkingId: string) => {
-    if (selectedParkingIds.includes(parkingId)) {
-      setSelectedParkingIds(selectedParkingIds.filter(id => id !== parkingId));
-    } else {
-      setSelectedParkingIds([...selectedParkingIds, parkingId]);
+    if (onEditAdmin) {
+      onEditAdmin(admin.username);
     }
   };
 
@@ -648,11 +577,8 @@ export default function Admins() {
                 )}
 
                 <div className="admin-actions">
-                  <button className="btn-icon assign" onClick={() => handleAssignParkings(admin)}>
-                    🅿️ Assign Parkings
-                  </button>
                   <button className="btn-icon edit" onClick={() => handleEdit(admin)}>
-                    📝 Edit
+                    📝 Edit & Assign Parkings
                   </button>
                   <button
                     className="btn-icon"
@@ -674,77 +600,6 @@ export default function Admins() {
           </div>
         )}
       </div>
-
-      {/* Parking Assignment Modal */}
-      {showParkingAssign && selectedAdminForParking && (
-        <div className="modal-overlay" onClick={() => setShowParkingAssign(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div>
-                <h2>🅿️ Manage Parkings for {selectedAdminForParking.managerName}</h2>
-                <p className="modal-subtitle">
-                  {selectedAdminForParking.assignedParkingIds?.length || 0} parking(s) currently assigned
-                </p>
-              </div>
-              <button className="modal-close" onClick={() => setShowParkingAssign(false)}>
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-body">
-              <p className="modal-description">
-                Select parkings this admin can manage. Click checkboxes to assign/unassign parkings.
-                Changes will be saved when you click "Save Assignments" button.
-              </p>
-
-              <div className="parking-selection">
-                {parkings
-                  .filter((p) => p.buildingCode === selectedAdminForParking.buildingCode)
-                  .map((parking) => {
-                    const isSelected = selectedParkingIds.includes(parking.id);
-                    return (
-                      <label 
-                        key={parking.id} 
-                        className={`parking-checkbox ${isSelected ? 'selected' : ''}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleParkingSelection(parking.id)}
-                        />
-                        <div className="parking-info">
-                          <strong>{parking.parkingName || parking.parkingNo}</strong>
-                          <span className="parking-no">#{parking.parkingNo}</span>
-                        </div>
-                        {isSelected && <span className="check-icon">✓</span>}
-                      </label>
-                    );
-                  })}
-                
-                {parkings.filter((p) => p.buildingCode === selectedAdminForParking.buildingCode).length === 0 && (
-                  <div className="empty-state-small">
-                    <div className="empty-icon">🅿️</div>
-                    <p>No parkings found for building {selectedAdminForParking.buildingCode}</p>
-                    <small>Create parkings first to assign them to this admin</small>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button className="btn-primary" onClick={handleSaveParkingAssignments}>
-                ✅ Save Assignments
-              </button>
-              <button className="btn-secondary" onClick={() => setShowParkingAssign(false)}>
-                ❌ Cancel
-              </button>
-              <div className="selection-counter">
-                {selectedParkingIds.length} parking(s) selected
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

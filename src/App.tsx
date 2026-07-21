@@ -6,6 +6,7 @@ import Navigation from './components/Navigation';
 import Dashboard from './pages/Dashboard';
 import Buildings from './pages/Buildings';
 import Admins from './pages/Admins';
+import EditAdmin from './pages/EditAdmin';
 import Units from './pages/Units';
 import Parkings from './pages/Parkings';
 import Reservations from './pages/Reservations';
@@ -14,6 +15,7 @@ import Reservations from './pages/Reservations';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
+  const [editingAdminUsername, setEditingAdminUsername] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -77,13 +79,26 @@ function App() {
   }
 
   const renderPage = () => {
+    // If editing an admin, show EditAdmin page
+    if (editingAdminUsername) {
+      return (
+        <EditAdmin
+          adminUsername={editingAdminUsername}
+          onBack={() => {
+            setEditingAdminUsername(null);
+            setCurrentPage('admins');
+          }}
+        />
+      );
+    }
+
     switch (currentPage) {
       case 'dashboard':
         return <Dashboard onNavigate={setCurrentPage} />;
       case 'buildings':
         return <Buildings />;
       case 'admins':
-        return <Admins />;
+        return <Admins onEditAdmin={(username) => setEditingAdminUsername(username)} />;
       case 'units':
         return <Units />;
       case 'parkings':
