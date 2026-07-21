@@ -246,6 +246,7 @@ export default function Admins() {
 
   const handleAssignParkings = async (admin: CognitoAdmin) => {
     setSelectedAdminForParking(admin);
+    // Pre-select already assigned parkings
     setSelectedParkingIds(admin.assignedParkingIds || []);
     setShowParkingAssign(true);
   };
@@ -622,18 +623,29 @@ export default function Admins() {
                     </span>
                   </div>
                   <div className="detail-row">
-                    <span className="detail-icon">🅿️</span>
-                    <span className="detail-value">
-                      Assigned Parkings: {admin.assignedParkingIds?.length || 0}
-                    </span>
-                  </div>
-                  <div className="detail-row">
                     <span className="detail-icon">📅</span>
                     <span className="detail-value">
                       Created: {new Date(admin.createdAt).toLocaleDateString('fa-IR')}
                     </span>
                   </div>
                 </div>
+
+                {/* Assigned Parkings Display */}
+                {admin.assignedParkingIds && admin.assignedParkingIds.length > 0 && (
+                  <div className="assigned-parkings">
+                    <h4>🅿️ Assigned Parkings ({admin.assignedParkingIds.length})</h4>
+                    <div className="parking-tags">
+                      {admin.assignedParkingIds.map((parkingId) => {
+                        const parking = parkings.find(p => p.id === parkingId);
+                        return (
+                          <span key={parkingId} className="parking-tag">
+                            {parking ? (parking.parkingName || parking.parkingNo) : 'Unknown'}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="admin-actions">
                   <button className="btn-icon assign" onClick={() => handleAssignParkings(admin)}>
@@ -668,7 +680,12 @@ export default function Admins() {
         <div className="modal-overlay" onClick={() => setShowParkingAssign(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>🅿️ Assign Parkings to {selectedAdminForParking.managerName}</h2>
+              <div>
+                <h2>🅿️ Manage Parkings for {selectedAdminForParking.managerName}</h2>
+                <p className="modal-subtitle">
+                  {selectedAdminForParking.assignedParkingIds?.length || 0} parking(s) currently assigned
+                </p>
+              </div>
               <button className="modal-close" onClick={() => setShowParkingAssign(false)}>
                 ✕
               </button>
@@ -676,29 +693,39 @@ export default function Admins() {
 
             <div className="modal-body">
               <p className="modal-description">
-                Select which parkings this admin can manage. They will only have access to these specific parkings.
+                Select parkings this admin can manage. Click checkboxes to assign/unassign parkings.
+                Changes will be saved when you click "Save Assignments" button.
               </p>
 
               <div className="parking-selection">
                 {parkings
                   .filter((p) => p.buildingCode === selectedAdminForParking.buildingCode)
-                  .map((parking) => (
-                    <label key={parking.id} className="parking-checkbox">
-                      <input
-                        type="checkbox"
-                        checked={selectedParkingIds.includes(parking.id)}
-                        onChange={() => toggleParkingSelection(parking.id)}
-                      />
-                      <div className="parking-info">
-                        <strong>{parking.parkingName || parking.parkingNo}</strong>
-                        <span className="parking-no">#{parking.parkingNo}</span>
-                      </div>
-                    </label>
-                  ))}
+                  .map((parking) => {
+                    const isSelected = selectedParkingIds.includes(parking.id);
+                    return (
+                      <label 
+                        key={parking.id} 
+                        className={`parking-checkbox ${isSelected ? 'selected' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleParkingSelection(parking.id)}
+                        />
+                        <div className="parking-info">
+                          <strong>{parking.parkingName || parking.parkingNo}</strong>
+                          <span className="parking-no">#{parking.parkingNo}</span>
+                        </div>
+                        {isSelected && <span className="check-icon">✓</span>}
+                      </label>
+                    );
+                  })}
                 
                 {parkings.filter((p) => p.buildingCode === selectedAdminForParking.buildingCode).length === 0 && (
                   <div className="empty-state-small">
+                    <div className="empty-icon">🅿️</div>
                     <p>No parkings found for building {selectedAdminForParking.buildingCode}</p>
+                    <small>Create parkings first to assign them to this admin</small>
                   </div>
                 )}
               </div>
@@ -706,11 +733,14 @@ export default function Admins() {
 
             <div className="modal-footer">
               <button className="btn-primary" onClick={handleSaveParkingAssignments}>
-                ✅ Save Assignments ({selectedParkingIds.length} selected)
+                ✅ Save Assignments
               </button>
               <button className="btn-secondary" onClick={() => setShowParkingAssign(false)}>
                 ❌ Cancel
               </button>
+              <div className="selection-counter">
+                {selectedParkingIds.length} parking(s) selected
+              </div>
             </div>
           </div>
         </div>
