@@ -233,6 +233,21 @@
               "isRequired": false,
               "attributes": []
             },
+            "assignedParkingIds": {
+              "name": "assignedParkingIds",
+              "isArray": true,
+              "type": "String",
+              "isRequired": false,
+              "attributes": [],
+              "isArrayNullable": true
+            },
+            "cognitoUsername": {
+              "name": "cognitoUsername",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
             "createdAt": {
               "name": "createdAt",
               "isArray": false,
@@ -327,11 +342,32 @@
               "isRequired": true,
               "attributes": []
             },
+            "firstName": {
+              "name": "firstName",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "lastName": {
+              "name": "lastName",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "username": {
+              "name": "username",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
             "sakenName": {
               "name": "sakenName",
               "isArray": false,
               "type": "String",
-              "isRequired": true,
+              "isRequired": false,
               "attributes": []
             },
             "sakenLastName": {
@@ -352,6 +388,13 @@
               "name": "email",
               "isArray": false,
               "type": "AWSEmail",
+              "isRequired": false,
+              "attributes": []
+            },
+            "cognitoUsername": {
+              "name": "cognitoUsername",
+              "isArray": false,
+              "type": "String",
               "isRequired": false,
               "attributes": []
             },
@@ -565,6 +608,153 @@
             "sortKeyFieldNames": []
           }
         },
+        "ParkingSpot": {
+          "name": "ParkingSpot",
+          "fields": {
+            "id": {
+              "name": "id",
+              "isArray": false,
+              "type": "ID",
+              "isRequired": true,
+              "attributes": []
+            },
+            "parkingId": {
+              "name": "parkingId",
+              "isArray": false,
+              "type": "ID",
+              "isRequired": true,
+              "attributes": []
+            },
+            "spotNumber": {
+              "name": "spotNumber",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "spotType": {
+              "name": "spotType",
+              "isArray": false,
+              "type": {
+                "enum": "ParkingSpotSpotType"
+              },
+              "isRequired": false,
+              "attributes": []
+            },
+            "isAvailable": {
+              "name": "isAvailable",
+              "isArray": false,
+              "type": "Boolean",
+              "isRequired": false,
+              "attributes": []
+            },
+            "buildingCode": {
+              "name": "buildingCode",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "floor": {
+              "name": "floor",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "section": {
+              "name": "section",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "description": {
+              "name": "description",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "createdAt": {
+              "name": "createdAt",
+              "isArray": false,
+              "type": "AWSDateTime",
+              "isRequired": false,
+              "attributes": [],
+              "isReadOnly": true
+            },
+            "updatedAt": {
+              "name": "updatedAt",
+              "isArray": false,
+              "type": "AWSDateTime",
+              "isRequired": false,
+              "attributes": [],
+              "isReadOnly": true
+            }
+          },
+          "syncable": true,
+          "pluralName": "ParkingSpots",
+          "attributes": [
+            {
+              "type": "model",
+              "properties": {}
+            },
+            {
+              "type": "auth",
+              "properties": {
+                "rules": [
+                  {
+                    "groupClaim": "cognito:groups",
+                    "provider": "userPools",
+                    "allow": "groups",
+                    "groups": [
+                      "SuperAdmins"
+                    ],
+                    "operations": [
+                      "create",
+                      "update",
+                      "delete",
+                      "read"
+                    ]
+                  },
+                  {
+                    "groupClaim": "cognito:groups",
+                    "provider": "userPools",
+                    "allow": "groups",
+                    "groups": [
+                      "BuildingAdmins"
+                    ],
+                    "operations": [
+                      "create",
+                      "update",
+                      "delete",
+                      "read"
+                    ]
+                  },
+                  {
+                    "allow": "private",
+                    "operations": [
+                      "read"
+                    ]
+                  },
+                  {
+                    "allow": "public",
+                    "provider": "apiKey",
+                    "operations": [
+                      "read"
+                    ]
+                  }
+                ]
+              }
+            }
+          ],
+          "primaryKeyInfo": {
+            "isCustomPrimaryKey": false,
+            "primaryKeyFieldName": "id",
+            "sortKeyFieldNames": []
+          }
+        },
         "Reserving": {
           "name": "Reserving",
           "fields": {
@@ -575,17 +765,24 @@
               "isRequired": true,
               "attributes": []
             },
-            "dateTime": {
-              "name": "dateTime",
+            "spotId": {
+              "name": "spotId",
+              "isArray": false,
+              "type": "ID",
+              "isRequired": true,
+              "attributes": []
+            },
+            "startTime": {
+              "name": "startTime",
               "isArray": false,
               "type": "AWSDateTime",
               "isRequired": true,
               "attributes": []
             },
-            "parkingNo": {
-              "name": "parkingNo",
+            "endTime": {
+              "name": "endTime",
               "isArray": false,
-              "type": "String",
+              "type": "AWSDateTime",
               "isRequired": true,
               "attributes": []
             },
@@ -617,10 +814,26 @@
               "isRequired": false,
               "attributes": []
             },
-            "duration": {
-              "name": "duration",
+            "buildingCode": {
+              "name": "buildingCode",
               "isArray": false,
-              "type": "Int",
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "reservedBy": {
+              "name": "reservedBy",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "status": {
+              "name": "status",
+              "isArray": false,
+              "type": {
+                "enum": "ReservingStatus"
+              },
               "isRequired": false,
               "attributes": []
             },
@@ -702,8 +915,129 @@
           }
         }
       },
-      "enums": {},
+      "enums": {
+        "ParkingSpotSpotType": {
+          "name": "ParkingSpotSpotType",
+          "values": [
+            "ELECTRIC",
+            "REGULAR",
+            "GUEST"
+          ]
+        },
+        "ReservingStatus": {
+          "name": "ReservingStatus",
+          "values": [
+            "ACTIVE",
+            "COMPLETED",
+            "CANCELLED"
+          ]
+        }
+      },
       "nonModels": {
+        "CognitoUser": {
+          "name": "CognitoUser",
+          "fields": {
+            "id": {
+              "name": "id",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "email": {
+              "name": "email",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            },
+            "name": {
+              "name": "name",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "phone": {
+              "name": "phone",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "buildingCode": {
+              "name": "buildingCode",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "managerCode": {
+              "name": "managerCode",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "unitNo": {
+              "name": "unitNo",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "accessNo": {
+              "name": "accessNo",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "userRole": {
+              "name": "userRole",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "isActive": {
+              "name": "isActive",
+              "isArray": false,
+              "type": "Boolean",
+              "isRequired": false,
+              "attributes": []
+            },
+            "userStatus": {
+              "name": "userStatus",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "createdAt": {
+              "name": "createdAt",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "updatedAt": {
+              "name": "updatedAt",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            },
+            "groups": {
+              "name": "groups",
+              "isArray": true,
+              "type": "String",
+              "isRequired": false,
+              "attributes": [],
+              "isArrayNullable": true
+            }
+          }
+        },
         "CreateAdminWithCognitoReturnType": {
           "name": "CreateAdminWithCognitoReturnType",
           "fields": {
@@ -741,6 +1075,96 @@
               "type": "String",
               "isRequired": false,
               "attributes": []
+            }
+          }
+        },
+        "DeleteAdminFromCognitoReturnType": {
+          "name": "DeleteAdminFromCognitoReturnType",
+          "fields": {
+            "success": {
+              "name": "success",
+              "isArray": false,
+              "type": "Boolean",
+              "isRequired": true,
+              "attributes": []
+            },
+            "message": {
+              "name": "message",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            }
+          }
+        },
+        "SuspendAdminInCognitoReturnType": {
+          "name": "SuspendAdminInCognitoReturnType",
+          "fields": {
+            "success": {
+              "name": "success",
+              "isArray": false,
+              "type": "Boolean",
+              "isRequired": true,
+              "attributes": []
+            },
+            "message": {
+              "name": "message",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true,
+              "attributes": []
+            }
+          }
+        },
+        "ListCognitoUsersReturnType": {
+          "name": "ListCognitoUsersReturnType",
+          "fields": {
+            "items": {
+              "name": "items",
+              "isArray": true,
+              "type": {
+                "nonModel": "CognitoUser"
+              },
+              "isRequired": false,
+              "attributes": [],
+              "isArrayNullable": false
+            },
+            "nextToken": {
+              "name": "nextToken",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false,
+              "attributes": []
+            }
+          }
+        }
+      },
+      "queries": {
+        "listCognitoUsers": {
+          "name": "listCognitoUsers",
+          "isArray": false,
+          "type": {
+            "nonModel": "ListCognitoUsersReturnType"
+          },
+          "isRequired": false,
+          "arguments": {
+            "limit": {
+              "name": "limit",
+              "isArray": false,
+              "type": "Int",
+              "isRequired": false
+            },
+            "nextToken": {
+              "name": "nextToken",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false
+            },
+            "filter": {
+              "name": "filter",
+              "isArray": false,
+              "type": "String",
+              "isRequired": false
             }
           }
         }
@@ -801,6 +1225,44 @@
               "isArray": false,
               "type": "String",
               "isRequired": false
+            }
+          }
+        },
+        "deleteAdminFromCognito": {
+          "name": "deleteAdminFromCognito",
+          "isArray": false,
+          "type": {
+            "nonModel": "DeleteAdminFromCognitoReturnType"
+          },
+          "isRequired": false,
+          "arguments": {
+            "username": {
+              "name": "username",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true
+            }
+          }
+        },
+        "suspendAdminInCognito": {
+          "name": "suspendAdminInCognito",
+          "isArray": false,
+          "type": {
+            "nonModel": "SuspendAdminInCognitoReturnType"
+          },
+          "isRequired": false,
+          "arguments": {
+            "username": {
+              "name": "username",
+              "isArray": false,
+              "type": "String",
+              "isRequired": true
+            },
+            "suspend": {
+              "name": "suspend",
+              "isArray": false,
+              "type": "Boolean",
+              "isRequired": true
             }
           }
         }

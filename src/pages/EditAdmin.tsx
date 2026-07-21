@@ -76,13 +76,20 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
         }
       }
 
-      // Get parking assignments from DynamoDB
+      // Get parking assignments from DynamoDB (force fresh data)
       let assignedParkingIds: string[] = [];
       const adminRecords = await client.models.Admin.list({
         filter: { email: { eq: attributes.email } },
+      }, {
+        // Force fetch from server, bypass cache
+        authMode: 'userPool',
       });
+      
+      console.log('📊 Admin records from DynamoDB:', adminRecords.data);
+      
       if (adminRecords.data.length > 0) {
         assignedParkingIds = adminRecords.data[0].assignedParkingIds || [];
+        console.log('🅿️ Assigned parking IDs:', assignedParkingIds);
       }
 
       const adminData = {
