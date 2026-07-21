@@ -76,53 +76,17 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
         }
       }
 
-      // Get parking assignments from DynamoDB using AWS SDK directly
+      // Get parking assignments from DynamoDB
       let assignedParkingIds: string[] = [];
+      const adminRecords = await client.models.Admin.list({
+        filter: { email: { eq: attributes.email } },
+      });
       
-      try {
-        const { DynamoDBClient, ScanCommand } = await import('@aws-sdk/client-dynamodb');
-        
-        const dynamoClient = new DynamoDBClient({
-          region: 'ca-central-1',
-          credentials: {
-            accessKeyId: credentials.accessKeyId,
-            secretAccessKey: credentials.secretAccessKey,
-            sessionToken: credentials.sessionToken,
-          },
-        });
-
-        const scanCommand = new ScanCommand({
-          TableName: 'Admin-7byiwotqubahfajsjnsizqwrcq-NONE',
-          FilterExpression: 'email = :email',
-          ExpressionAttributeValues: {
-            ':email': { S: attributes.email },
-          },
-        });
-
-        const scanResult = await dynamoClient.send(scanCommand);
-        console.log('📊 DynamoDB scan result:', scanResult);
-
-        if (scanResult.Items && scanResult.Items.length > 0) {
-          const item = scanResult.Items[0];
-          if (item.assignedParkingIds && item.assignedParkingIds.L) {
-            assignedParkingIds = item.assignedParkingIds.L.map((id: any) => id.S).filter(Boolean);
-          }
-        }
-
+      console.log('📊 Admin records from DynamoDB:', adminRecords.data);
+      
+      if (adminRecords.data.length > 0) {
+        assignedParkingIds = adminRecords.data[0].assignedParkingIds || [];
         console.log('🅿️ Assigned parking IDs:', assignedParkingIds);
-      } catch (dynamoError) {
-        console.error('❌ Error fetching from DynamoDB:', dynamoError);
-        // Fall back to Amplify client
-        const adminRecords = await client.models.Admin.list({
-          filter: { email: { eq: attributes.email } },
-        });
-        
-        console.log('📊 Admin records from Amplify:', adminRecords.data);
-        
-        if (adminRecords.data.length > 0) {
-          assignedParkingIds = adminRecords.data[0].assignedParkingIds || [];
-          console.log('🅿️ Assigned parking IDs from Amplify:', assignedParkingIds);
-        }
       }
 
       const adminData = {
@@ -356,7 +320,9 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
       }
 
       alert(`✅ تغییرات با موفقیت ذخیره شد!\n\n${selectedParkingIds.length} پارکینگ به ${formData.managerName} اختصاص داده شد.`);
-      onBack();
+      
+      // Reload data to show updated parking assignments
+      await loadAdminData();
     } catch (error: any) {
       console.error('❌ Error saving:', error);
       alert(`❌ خطا در ذخیره: ${error.message}`);
