@@ -166,10 +166,8 @@ export default function EditAdmin({ adminUsername, onBack }: EditAdminProps) {
       });
       setSelectedParkingIds(assignedParkingIds);
 
-      // Load parkings for this building
-      const parkingsData = await client.models.Parking.list({
-        filter: { buildingCode: { eq: adminData.buildingCode } },
-      });
+      // Load ALL parkings so Super Admin can assign any parking to any admin
+      const parkingsData = await client.models.Parking.list();
       setParkings(parkingsData.data as Parking[]);
 
       console.log('✅ Admin data loaded:', adminData);
